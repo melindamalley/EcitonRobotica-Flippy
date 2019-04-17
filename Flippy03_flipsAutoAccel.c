@@ -147,7 +147,7 @@ void init(void)
 	DDRC &= ~(1<<2); //IR1 as input
 	DDRC &= ~(1<<3); //IR2/strain gage as input
 	//initalize adc
-	ADMUX &= (1<<REFS0); //|(1<<MUX0);//choose analog pin  
+	ADMUX = (1<<REFS0); //|(1<<MUX0);//choose analog pin  
 	ADCSRA = (1<<ADEN) | (1<<ADPS0); //set up a/d
 
 			//enable power switch interrupt
@@ -757,7 +757,7 @@ char flipdir=0; //direction of flipping, reference with pcb facing and forward (
 
 //Debug program
 
-			output.led_m[2]=20;
+			output.led_m[0]=20;
 //			printf("m s %d %d %d %d %d %d\n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2], input.accell_s[0],input.accell_s[1], input.accell_s[2]);
 //			printf("s x=%d y=%d z=%d \n\r",input.accell_s[0],input.accell_s[1], input.accell_s[2]);
 //			s_angle=atan2((input.accell_s[0]),(input.accell_s[1]))*180/3.14159;
@@ -766,30 +766,36 @@ char flipdir=0; //direction of flipping, reference with pcb facing and forward (
 //			printf("difference=%d \n\r", state);
 //			printf("s=%d \n\r", (int)s_angle);
 //			printf("m=%d \n\r", (int)m_angle);
-//			printf("hi!");
-//			printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
+//if (input.switch_dock_m==1){
+//			printf("lala \n\r" );
+//}
+//if (input.switch_tension_m==0){
+//			printf("lala \n\r" );
+//}
+			printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
 //			printf("IR %d %d \n\r", input.IR1_m, input.IR2_m);
-//			printf("IR %d \n\r", input.IR2_m);
+//			printf("IR %d \n\r", input.IR1_m);
+//			printf("Bend %d \n\r", input.bend_m);
 //			output.direction_bend_m=1; // 0 positive
-//			output.speed_bend_m=0;
-//			output.direction_dock_m=0; // 0 positive
-//			output.speed_dock_m=0;
+//			output.speed_bend_m=200;
+//			output.direction_dock_m=1; // 0 positive
+//			output.speed_dock_m=200;
 //			output.vibration_m=0;	
 /*		
 			output.speed_bend_m=0;
 			output.speed_bend_s=0;	
-			if (input.switch_dock_m==1)
+			if (input.switch_tension_m==0)
 			{
-				output.led_m[0]=30;
-				output.led_m[1]=0;	
-//				output.direction_bend_m=0;
-//				output.speed_bend_m=40;
+				output.led_m[0]=0;
+				output.led_m[1]=30;	
+				output.direction_dock_m=0;
+				output.speed_bend_m=0;
 				}
 			else {
-				output.led_m[0]=0;
+				output.led_m[0]=30;
 				output.led_m[1]=0;	
-//				output.direction_bend_m=1;
-//				output.speed_bend_m=0;
+				output.direction_dock_m=1;
+//				output.speed_bend_m=200;
 				}
 */
 
@@ -1788,7 +1794,7 @@ int get_bend(void)
 {	
 	     //initalize adc
 		ADMUX &= (1<<REFS0); //choose reference and clear analog pins
-		ADMUX |= 0x01;//voltage reference selection AVcc at AREF and choose analog pin - ADC1
+		ADMUX |= 0x03;//voltage reference selection AVcc at AREF and choose analog pin - ADC1
 		ADCSRA = (1<<ADEN) |    (1<<ADPS0); //set up a/d (aden adc enable, )
 
 
@@ -1798,7 +1804,7 @@ int get_bend(void)
 		ADCSRA |= (1<<ADSC);//start adc conversion to sample sensor with led off
 		while((ADCSRA&(1<<ADSC))!=0);//busy wait for converstion to end
 
-			printf("%d \n\r",ADCW);	
+//			printf("%d \n\r",ADCW);	
 
 		return(ADCW);
 
@@ -1862,16 +1868,16 @@ void master_input_update()
 {
 	input.switch_dock_m=switch_dock();
 	input.switch_tension_m=switch_tension1();
-	input.bend_m=get_bend();
-//	input.IR1_m=get_IR1();
+//	input.bend_m=get_bend();
+	input.IR1_m=get_IR1();
 //	printf("%d \n\r",input.IR1_m);
-//	input.IR2_m=get_IR2();
+	input.IR2_m=get_IR2();
 //	printf("%d \n\r",input.IR2_m);
 
 		//get accel data from master side
 	
 	//i2c_write_accell( 0b11010010,0x1c,0b11100000);
-/*
+
 	i2c_write_accell( 0b11010010,0x6b,0);
 	int x=((i2c_read_accell( 0b11010010, 0x3b)<<8)&0xff00)+(i2c_read_accell( 0b11010010, 0x3c)&0x00ff);
 	int y=((i2c_read_accell( 0b11010010, 0x3d)<<8)&0xff00)+(i2c_read_accell( 0b11010010, 0x3e)&0x00ff);			
@@ -1896,7 +1902,7 @@ void master_input_update()
 	input.accell_m[0]=x;
 	input.accell_m[1]=y;
 	input.accell_m[2]=z;
-
+/*
 		//i2c_write_accell( 0b11010010,0x1c,0b11100000);
 	i2c_write_accell( 0b11010000,0x6b,0);
 	int x=((i2c_read_accell( 0b11010000, 0x3b)<<8)&0xff00)+(i2c_read_accell( 0b11010000, 0x3c)&0x00ff);
