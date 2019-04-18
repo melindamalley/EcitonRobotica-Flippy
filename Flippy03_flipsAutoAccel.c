@@ -83,6 +83,7 @@ static uint8_t toggle_wakeup;
 void init(void);
 int i2c_send(void);
 static uint8_t sleep_mode;
+
 //setup for printf
 int uart_putchar(char c, FILE *stream) { 
     if (c == '\n') 
@@ -94,7 +95,7 @@ int uart_putchar(char c, FILE *stream) {
 }
 FILE mystdout = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
 
-void ioinit (void) {
+void ioinit (void) { 
     UBRR0H = MYUBRR >> 8;
     UBRR0L = MYUBRR;
     UCSR0B = (1<<TXEN0);

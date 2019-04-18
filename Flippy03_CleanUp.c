@@ -12,7 +12,7 @@
 #include <avr/interrupt.h>
 #define FOSC 8000000 //???
 #define BAUD 9600
-#define MYUBRR (((((FOSC * 10) / (16L * BAUD)) + 5) / 10))n //???
+#define MYUBRR (((((FOSC * 10) / (16L * BAUD)) + 5) / 10)) //???
 
 #define ee_POWER_STATE 0x00 //???
 #define accell_slave_addrs  0b11010000
@@ -99,7 +99,7 @@ struct outputs{
 	uint8_t direction_bend_s;
 	uint8_t led_m[3];
 	uint8_t led_s[3];
-	unint8_t vibration_m; 
+	uint8_t vibration_m; 
 
 };
 
@@ -111,8 +111,9 @@ static uint8_t power_state; //
 static uint8_t toggle_wakeup; //variable for power/sleep function
 static uint8_t sleep_mode; //
 
+/////////
 //setup for printf
-int uart_putchar(char c, FILE *stream) { //something about uart but not sure exactly what.
+int uart_putchar(char c, FILE *stream) { //
     if (c == '\n') 
         uart_putchar('\r', stream); 
     loop_until_bit_is_set(UCSR0A, UDRE0); 
@@ -122,16 +123,17 @@ int uart_putchar(char c, FILE *stream) { //something about uart but not sure exa
 }
 FILE mystdout = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE); //???
 
+//Don't understand, but this is also necessary for printf
 void ioinit (void) { //usart
-  /*  UBRR0H = MYUBRR >> 8; //clock
+    UBRR0H = MYUBRR >> 8; //clock
     UBRR0L = MYUBRR;  
     UCSR0B = (1<<TXEN0);
     
     fdev_setup_stream(&mystdout, uart_putchar, NULL, _FDEV_SETUP_WRITE); //???
     stdout = &mystdout; //???
-*/
-}
 
+}
+////////
 
 void init(void)
 {
@@ -217,7 +219,8 @@ int main(void)
             _delay_ms(500);
 
             setLED(0,0,0);
-
+						printf("We can print without i2c");
+						
 			//you can adjust this delay.. eventually if too small it may cause problems, but you can fix this by changing it back
 			_delay_ms(20);
 
