@@ -24,6 +24,8 @@
 // MACROS FOR PIN HANDLING (STOLEN FROM JULIA)
 #define output(directions,pin) (directions|= pin) //set port direction for output
 #define input(directions,pin) (directions &=(~pin)) //set port direction for input
+#define set(port,pin) (port |= pin) // set port pin
+#define clear(port,pin) (port &= (~pin)) // clear port pin
 //////////////////////////////////////
 
 ////////////////
@@ -219,17 +221,18 @@ void setLED(unsigned char red, unsigned char green, unsigned char blue)
 		for(unsigned char bit=0; bit<=7; bit++)
 		{
 			//bit initiation
-			PORTD |= 0x80; //old RGB driver at PD0 (0x01), new RGB driver will be at PD7 (0x80)
+			set(led_port, led_pin);
 			_delay_us(2);
-			PORTD &=~ 0x80;
+			clear(led_port, led_pin);
 			_delay_us(3);
 
-			if(array[byte] & (0x80>>bit))
-				PORTD |= 0x80;
+			if(array[byte] & (led_pin>>bit))
+				set(led_port, led_pin);
 			else
-				PORTD &=~0x80;
+				clear(led_port, led_pin);
 			_delay_us(10); 
-			PORTD &=~0x80;
+			clear(led_port, led_pin);
+
 			_delay_us(5);  //~50kHz	
 		}
 	}
