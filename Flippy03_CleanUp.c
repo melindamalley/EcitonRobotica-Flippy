@@ -18,6 +18,7 @@
 #define accell_slave_addrs  0b11010000
 #define	accell_master_addrs 0b11010010
 #define atmega_slave 0xf0 //???
+#define led_wrt_cmd 0x3A //led driver write command
 
 //////////////////////////////////////
 //
@@ -31,11 +32,17 @@
 ////////////////
 //SETUP AND DEFINE PINS
 
+//Vreg1 Pin (Power on) is PC0
+#define vreg1_port_direction DDRC
+#define vreg1_port PORTC
+#define vreg1_pin (1 << 0)
+
 //LED is PD7
 #define led_port_direction DDRD
 #define led_port PORTD
 #define led_pin (1 << 7)
 
+//
 
 ///////////////
 
@@ -48,6 +55,7 @@
 
 #define MASTER 1 //choose master or slave 
 
+//Define helper functions
 void setLED(unsigned char red, unsigned char green, unsigned char blue);
 int switch_power(void);
 int switch_tension1(void);
@@ -57,6 +65,11 @@ void master_output_update(void);
 void master_input_update(void);
 void flipbend(char side, char p);
 double get_accel_diff(void);
+
+void init(void);
+int i2c_send(void);
+
+//Define Robot Inputs/Sensors
 
 struct inputs{
 	uint8_t	switch_power;
@@ -73,6 +86,8 @@ struct inputs{
  
 };
 
+//Define Robot Outputs
+
 struct outputs{
 	uint8_t speed_bend_m;
 	uint8_t speed_bend_s;
@@ -84,20 +99,20 @@ struct outputs{
 	uint8_t direction_bend_s;
 	uint8_t led_m[3];
 	uint8_t led_s[3];
-	int vibration_m;
+	unint8_t vibration_m; 
 
 };
 
 struct outputs output;
 struct inputs input;
 
-static int power_state;
-static uint8_t toggle_wakeup;
-void init(void);
-int i2c_send(void);
-static uint8_t sleep_mode;
+//Define helper variables
+static uint8_t power_state; //
+static uint8_t toggle_wakeup; //variable for power/sleep function
+static uint8_t sleep_mode; //
+
 //setup for printf
-int uart_putchar(char c, FILE *stream) { 
+int uart_putchar(char c, FILE *stream) { //something about uart but not sure exactly what.
     if (c == '\n') 
         uart_putchar('\r', stream); 
     loop_until_bit_is_set(UCSR0A, UDRE0); 
@@ -121,7 +136,7 @@ void ioinit (void) { //usart
 void init(void)
 {
 
-	//enable printf output
+	//Zero all ports
 	DDRB=0;
 	PORTB=0;
 	DDRC=0;
@@ -133,11 +148,12 @@ void init(void)
 
 	sleep_mode=0;
 	//power on 
-	DDRC |= (1<<0); //output PortC0
-	PORTC |= (1<<0);  //turn on PortC0 (Vreg1)
+	output(vreg1_port_direction, vreg1_pin);
+	set(vreg1_port, vreg1_pin);
+	//DDRC |= (1<<0); //output PortC0
+	//PORTC |= (1<<0);  //turn on PortC0 (Vreg1)
 
-	//rgb led init
-	output(led_port_direction, led_pin);
+	output(led_port_direction, led_pin); 	//rgb led init
 
 	DDRB &= ~(1<<1); //tension switch as input
 	DDRD &= ~(1<<4); //gripper/control switch as input
@@ -214,9 +230,9 @@ void setLED(unsigned char red, unsigned char green, unsigned char blue)
 	//Bit banging 20-600kHz
 	//Send LSB first
 	
-	unsigned char array[4] = {0x3A, red, blue,green};
+	unsigned char array[4] = {led_wrt_cmd, red, blue,green};
 
-	for(char byte = 0; byte <= 3; byte++)
+	for(char byte = 0; byte <= 3; byte++)  //Go through loop 4x - first write command, then each rgb
 	{
 		for(unsigned char bit=0; bit<=7; bit++)
 		{
