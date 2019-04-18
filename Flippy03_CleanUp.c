@@ -17,18 +17,25 @@
 #define ee_POWER_STATE 0x00 //???
 #define accell_slave_addrs  0b11010000
 #define	accell_master_addrs 0b11010010
-#define atmega_slave 0xf0
+#define atmega_slave 0xf0 //???
 
 //////////////////////////////////////
 //
 // MACROS FOR PIN HANDLING (STOLEN FROM JULIA)
-#define output(directions,pin) (port |= pin) //set port direction for output
+#define output(directions,pin) (directions|= pin) //set port direction for output
 #define input(directions,pin) (directions &=(~pin)) //set port direction for input
 //////////////////////////////////////
 
+////////////////
 //SETUP AND DEFINE PINS
 
-#define LED
+//LED is PD7
+#define led_port_direction DDRD
+#define led_port PORTD
+#define led_pin (1 << 7)
+
+
+///////////////
 
 //Flip Parameters:
 
@@ -96,15 +103,16 @@ int uart_putchar(char c, FILE *stream) {
 
     return 0; 
 }
-FILE mystdout = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
+FILE mystdout = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE); //???
 
-void ioinit (void) { /*
-    UBRR0H = MYUBRR >> 8; 
-    UBRR0L = MYUBRR;
+void ioinit (void) { //usart
+  /*  UBRR0H = MYUBRR >> 8; //clock
+    UBRR0L = MYUBRR;  
     UCSR0B = (1<<TXEN0);
     
-    fdev_setup_stream(&mystdout, uart_putchar, NULL, _FDEV_SETUP_WRITE);
-    stdout = &mystdout;*/
+    fdev_setup_stream(&mystdout, uart_putchar, NULL, _FDEV_SETUP_WRITE); //???
+    stdout = &mystdout; //???
+*/
 }
 
 
@@ -127,7 +135,7 @@ void init(void)
 	PORTC |= (1<<0);  //turn on PortC0 (Vreg1)
 
 	//rgb led init
-	DDRD |= (1<<7); //data direction output for rgb driver (Prev. PD0, now PD7)
+	output(led_port_direction, led_pin);
 
 	DDRB &= ~(1<<1); //tension switch as input
 	DDRD &= ~(1<<4); //gripper/control switch as input
