@@ -1,5 +1,3 @@
-#define F_CPU 8000000UL //???
-
 #include <avr/eeprom.h>
 #include <avr/io.h>
 #include <avr/wdt.h>
@@ -10,15 +8,14 @@
 #include <math.h>
 #include <stdio.h>
 #include <avr/interrupt.h>
-#define FOSC 8000000 //???
-#define BAUD 9600
-#define MYUBRR (((((FOSC * 10) / (16L * BAUD)) + 5) / 10)) //???
+#define FOSC 8000000 // oscillator clock frequency, page 166 datasheet, not sure why it's set to this value though
+#define BAUD 9600 // baud rate
+#define MYUBRR (((((FOSC * 10) / (16L * BAUD)) + 5) / 10)) // used to set the UBRR high and low registers, Usart Baud Rate registers, not sure about the formulat though, see datasheet page 146
 
-#define ee_POWER_STATE 0x00 //???
 #define accell_slave_addrs  0b11010000
 #define	accell_master_addrs 0b11010010
-#define atmega_slave 0xf0 //???
-#define led_wrt_cmd 0x3A //led driver write command
+#define atmega_slave 0xf0 // slave address, should be renamed to something more meaningful
+#define led_wrt_cmd 0x3A // led driver write command
 
 //////////////////////////////////////
 //
@@ -121,7 +118,11 @@ int uart_putchar(char c, FILE *stream) { //
 
     return 0; 
 }
-FILE mystdout = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE); //???
+/* #define FDEV_SETUP_STREAM(put, get, rwflag) from stdio.h	
+Initializer for a user-supplied stdio stream. 
+This macro acts similar to fdev_setup_stream(), used as the initializer of a variable of type FILE.
+*/
+FILE mystdout = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
 
 //Don't understand, but this is also necessary for printf
 void ioinit (void) { //usart
@@ -129,8 +130,14 @@ void ioinit (void) { //usart
     UBRR0L = MYUBRR;  
     UCSR0B = (1<<TXEN0);
     
-    fdev_setup_stream(&mystdout, uart_putchar, NULL, _FDEV_SETUP_WRITE); //???
-    stdout = &mystdout; //???
+    /* #define fdev_setup_stream(stream, put, get, rwflag) from stdio.h	
+	Setup a user-supplied buffer as an stdio stream.
+	This macro takes a user-supplied buffer stream, and sets it up as a stream that is valid for stdio operations, 
+	similar to one that has been obtained dynamically from fdevopen(). The buffer to setup must be of type FILE.
+	The rwflag argument can take one of the values _FDEV_SETUP_READ, _FDEV_SETUP_WRITE, or _FDEV_SETUP_RW, for read, write, or read/write intent, respectively.
+    */
+    fdev_setup_stream(&mystdout, uart_putchar, NULL, _FDEV_SETUP_WRITE);
+    stdout = &mystdout;
 
 }
 ////////
