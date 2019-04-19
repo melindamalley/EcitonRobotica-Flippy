@@ -8,8 +8,9 @@
 #include <math.h>
 #include <stdio.h>
 #include <avr/interrupt.h>
+
 #define FOSC 8000000 // oscillator clock frequency, page 166 datasheet, not sure why it's set to this value though
-#define BAUD 9600 // baud rate
+#define BAUD 9600 // baud rate desired
 #define MYUBRR (((((FOSC * 10) / (16L * BAUD)) + 5) / 10)) // used to set the UBRR high and low registers, Usart Baud Rate registers, not sure about the formulat though, see datasheet page 146
 
 #define accell_slave_addrs  0b11010000
@@ -103,14 +104,13 @@ struct outputs{
 struct outputs output;
 struct inputs input;
 
-//Define helper variables
+// define helper variables
 static uint8_t power_state; //
 static uint8_t toggle_wakeup; //variable for power/sleep function
 static uint8_t sleep_mode; //
 
-/////////
-//setup for printf
-int uart_putchar(char c, FILE *stream) { //
+// setup for printf
+int uart_putchar(char c, FILE *stream) {
     if (c == '\n') 
         uart_putchar('\r', stream); 
     loop_until_bit_is_set(UCSR0A, UDRE0); 
@@ -118,6 +118,7 @@ int uart_putchar(char c, FILE *stream) { //
 
     return 0; 
 }
+
 /* #define FDEV_SETUP_STREAM(put, get, rwflag) from stdio.h	
 Initializer for a user-supplied stdio stream. 
 This macro acts similar to fdev_setup_stream(), used as the initializer of a variable of type FILE.
@@ -145,7 +146,7 @@ void ioinit (void) { //usart
 void init(void)
 {
 
-	//Zero all ports
+	// all ports as output, all outputs driven low
 	DDRB=0;
 	PORTB=0;
 	DDRC=0;
@@ -153,7 +154,7 @@ void init(void)
 	DDRD=0;
 	PORTD=0;
 
-	 ioinit(); //usart init
+	ioinit(); // Usart init
 
 	sleep_mode=0;
 	//power on 
@@ -162,7 +163,7 @@ void init(void)
 	//DDRC |= (1<<0); //output PortC0
 	//PORTC |= (1<<0);  //turn on PortC0 (Vreg1)
 
-	output(led_port_direction, led_pin); 	//rgb led init
+	output(led_port_direction, led_pin); 	// RGB led init
 
 	DDRB &= ~(1<<1); //tension switch as input
 	DDRD &= ~(1<<4); //gripper/control switch as input
@@ -179,11 +180,12 @@ void init(void)
 	DDRC &= ~(1<<1); //flex sensor as input
 	DDRC &= ~(1<<2); //IR1 as input
 	DDRC &= ~(1<<3); //IR2/strain gage as input
-	//initalize adc
+
+	// initalize ADC
 	ADMUX &= (1<<REFS0); //|(1<<MUX0);//choose analog pin  
 	ADCSRA = (1<<ADEN) | (1<<ADPS0); //set up a/d
 
-			//enable power switch interrupt
+	// enable power switch interrupt
 	DDRD |= 1<<3;		// Set PD2 as input (Using for interupt INT0)
 	PORTD |= 1<<3;		// Enable PD2 pull-up resistor
 	EIMSK = 1<<1;					// Enable INT0
@@ -213,7 +215,6 @@ ISR(TWI_vect) //SIG_2WIRE_SERIAL - 2 wire Serial interface
 
 int main(void)
 {
-
 	init();	
 	sei();	
 
@@ -226,13 +227,12 @@ int main(void)
             _delay_ms(500);
 
             setLED(0,0,0);
-						printf("We can print without i2c");
+
+			printf("We can print without i2c");
 						
 			//you can adjust this delay.. eventually if too small it may cause problems, but you can fix this by changing it back
 			_delay_ms(20);
-
 	}
-
 }
 
 void setLED(unsigned char red, unsigned char green, unsigned char blue)
