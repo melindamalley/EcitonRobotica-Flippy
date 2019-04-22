@@ -87,14 +87,14 @@ struct inputs{
 //Define Robot Outputs
 
 struct outputs{
-	uint8_t speed_bend_m;
-	uint8_t speed_bend_s;
-	uint8_t speed_dock_m;
-	uint8_t speed_dock_s;
-	uint8_t direction_dock_m;
-	uint8_t direction_dock_s;
-	uint8_t direction_bend_m;
-	uint8_t direction_bend_s;
+	uint8_t speed_bend_m3_m;
+	uint8_t speed_bend_m3_s;
+	uint8_t speed_dock_m5_m;
+	uint8_t speed_dock_m5_s;
+	uint8_t direction_dock_m5_m;
+	uint8_t direction_dock_m5_s;
+	uint8_t direction_bend_m3_m;
+	uint8_t direction_bend_m3_s;
 	uint8_t led_m[3];
 	uint8_t led_s[3];
 	uint8_t vibration_m; 
@@ -171,7 +171,7 @@ void init(void)
 
 	DDRB |= (1<<6); //Hbridge 2-1 output PB6
 	DDRB |= (1<<7); //Hbridge 1-1 output PB7
-	TCCR0A |= (1<<COM0A1) | (1<<COM0B1) | (1<<WGM00); //Timer counter init
+	TCCR0A |= (1<<COM0A1) | (1<<COM0B1) | (1<<WGM00); //Timer counter init (for pwm/motor control)
 	TCCR0B =0x03; //prescaler set to 0
 	OCR0B = 0x00;//start with motor off (PD5)
 	OCR0A = 0x00;//start with motor off (PD6)
@@ -229,8 +229,11 @@ int main(void)
 			
 			printf("We can print without i2c");
 
-			output.direction_bend_m=0; // 0 positive
-			output.speed_bend_m=200;
+
+			output.speed_dock_m5_m=0;
+			output.direction_dock_m5_m=0;
+//			output.direction_bend_m3_m=0; // 0 positive
+//			output.speed_bend_m3_m=60;
 
 						
 			//you can adjust this delay.. eventually if too small it may cause problems, but you can fix this by changing it back
@@ -244,33 +247,33 @@ int main(void)
 void master_output_update() //motor updates
 {
 
-	if(output.direction_dock_m==0)
+	if(output.direction_dock_m5_m==0)
 	{
-		DDRB |= (1<<6);
-		PORTB &= ~(1<<6);
-		OCR0B = output.speed_dock_m;
+		DDRB |= (1<<6); //set direction dock motor (M5) PB6 output
+		PORTB &= ~(1<<6); //set dock motor (M5) PB6 low - (in2/in4 on hbridge)
+		OCR0B = output.speed_dock_m5_m; //sets PWM for OCR0B (PD5) - in1/in3 on hbridge - motor goes forward on high portion
 
 	}
 	else
 	{
-		DDRB |= (1<<6);
-		PORTB |= (1<<6);
-		OCR0B = 255-output.speed_dock_m;
+		DDRB |= (1<<6); //set direction dock motor (M5) PB6 output
+		PORTB |= (1<<6); //set dock motor (M5) PB6 high - (in2 and in4 on hbridge)
+		OCR0B = 255-output.speed_dock_m5_m; //sets PWM for OCR0B (PD5) - in1/in3 on hbridge - motor goes backward on low portion
 	}
 
 
-	if(output.direction_bend_m==0)
+	if(output.direction_bend_m3_m==0)
 	{
-		DDRB |= (1<<7);
-		PORTB &= ~(1<<7);
-		OCR0A = output.speed_bend_m;
+		DDRB |= (1<<7); //set direction bend motor (M3) PB7 output
+		PORTB &= ~(1<<7); //set bend motor (M3) PB7 low - (in2/in4 on hbridge)
+		OCR0A = output.speed_bend_m3_m; //sets PWM for OCR0A (PD6) - in1/in3 on hbridge - motor goes forward on high portion
 
 	}
 	else
 	{
-		DDRB |= (1<<7);
-		PORTB |= (1<<7);
-		OCR0A = 255-output.speed_bend_m;
+		DDRB |= (1<<7); //set direction bend motor (M3) PB7 output
+		PORTB |= (1<<7); //set bend motor (M3) PB7 high - (in2/in4 on hbridge)
+		OCR0A = 255-output.speed_bend_m3_m; //sets PWM for OCR0A (PD6) - in1/in3 on hbridge - motor goes backward on low portion
 	}
 
 	if (output.vibration_m==1)

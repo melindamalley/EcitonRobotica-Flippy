@@ -61,14 +61,14 @@ struct inputs{
 };
 
 struct outputs{
-	uint8_t speed_bend_m;
-	uint8_t speed_bend_s;
-	uint8_t speed_dock_m;
-	uint8_t speed_dock_s;
-	uint8_t direction_dock_m;
-	uint8_t direction_dock_s;
-	uint8_t direction_bend_m;
-	uint8_t direction_bend_s;
+	uint8_t speed_bend_m3_m;
+	uint8_t speed_bend_m3_s;
+	uint8_t speed_dock_m5_m;
+	uint8_t speed_dock_m5_s;
+	uint8_t direction_dock_m5_m;
+	uint8_t direction_dock_m5_s;
+	uint8_t direction_bend_m3_m;
+	uint8_t direction_bend_m3_s;
 	uint8_t led_m[3];
 	uint8_t led_s[3];
 	int vibration_m;
@@ -138,7 +138,7 @@ void init(void)
 
 	DDRD |= (1<<5); //Hbridge 2-1 output
 	DDRD |= (1<<6); //Hbridge 1-1 output
-	TCCR0A |= (1<<COM0A1) | (1<<COM0B1) | (1<<WGM00);
+	TCCR0A |= (1<<COM0A1) | (1<<COM0B1) | (1<<WGM00); //init counter for PWM for motors ?
 	TCCR0B =0x03; //prescaler set to 0
 	OCR0B = 0x00;//start with motor off
 	OCR0A = 0x00;//start with motor off
@@ -221,7 +221,7 @@ int i2c_send()
 	}
 	
 
-	TWDR=output.speed_bend_s;
+	TWDR=output.speed_bend_m3_s;
 
 
 
@@ -238,7 +238,7 @@ int i2c_send()
 
 
 
-	TWDR=output.speed_dock_s;
+	TWDR=output.speed_dock_m5_s;
 
 	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
 
@@ -252,7 +252,7 @@ int i2c_send()
 	return (-1);
 	}
 
-	TWDR=output.direction_dock_s;
+	TWDR=output.direction_dock_m5_s;
 
 	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
 
@@ -265,7 +265,7 @@ int i2c_send()
 	sei();
 	return (-1);
 	}
-	TWDR=output.direction_bend_s;
+	TWDR=output.direction_bend_m3_s;
 
 	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
 
@@ -698,26 +698,26 @@ char flipdir=0; //direction of flipping, reference with pcb facing and forward (
 //			printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
 //			printf("IR %d %d \n\r", input.IR1_m, input.IR2_m);
 //			printf("IR %d \n\r", input.IR2_m);
-//			output.direction_bend_m=1; // 0 positive
-//			output.speed_bend_m=0;
-//			output.direction_dock_m=0; // 0 positive
-//			output.speed_dock_m=0;
+//			output.direction_bend_m3_m=1; // 0 positive
+//			output.speed_bend_m3_m=0;
+//			output.direction_dock_m5_m=0; // 0 positive
+//			output.speed_dock_m5_m=0;
 //			output.vibration_m=0;	
 /*		
-			output.speed_bend_m=0;
-			output.speed_bend_s=0;	
+			output.speed_bend_m3_m=0;
+			output.speed_bend_m3_s=0;	
 			if (input.switch_dock_m==1)
 			{
 				output.led_m[0]=30;
 				output.led_m[1]=0;	
-//				output.direction_bend_m=0;
-//				output.speed_bend_m=40;
+//				output.direction_bend_m3_m=0;
+//				output.speed_bend_m3_m=40;
 				}
 			else {
 				output.led_m[0]=0;
 				output.led_m[1]=0;	
-//				output.direction_bend_m=1;
-//				output.speed_bend_m=0;
+//				output.direction_bend_m3_m=1;
+//				output.speed_bend_m3_m=0;
 				}
 */
 
@@ -731,8 +731,8 @@ char flipdir=0; //direction of flipping, reference with pcb facing and forward (
 if ((input.switch_dock_m==1)&&(input.switch_dock_s==1)){
 	output.led_m[0]=0;
 	output.led_m[1]=0;
-	output.speed_dock_s=0;
-	output.speed_dock_m=0;
+	output.speed_dock_m5_s=0;
+	output.speed_dock_m5_m=0;
 	if (state==0){
 		state=1;
 		}
@@ -747,45 +747,45 @@ if (state==0){
 	if (input.switch_tension_m==1){
 		output.led_m[0]=20;
 		output.led_s[1]=20;
-		output.direction_dock_m=1;
-		output.speed_dock_m=200;
+		output.direction_dock_m5_m=1;
+		output.speed_dock_m5_m=200;
 	}
 	else if (input.switch_dock_s==1){
 		output.led_m[1]=20;
-		output.direction_dock_m=0;
-		output.speed_dock_m=200;
+		output.direction_dock_m5_m=0;
+		output.speed_dock_m5_m=200;
 	}
 	else{
 		output.led_m[0]=0;
 		output.led_m[1]=0;
-		output.speed_dock_m=0;
+		output.speed_dock_m5_m=0;
 		}
 }
 else{
 	if (input.switch_dock_m==1){
 		output.led_m[0]=20;
-		output.direction_dock_s=1;
-		output.speed_dock_s=200;
+		output.direction_dock_m5_s=1;
+		output.speed_dock_m5_s=200;
 	}
 	else if (input.switch_tension_m==0){
 		output.led_m[1]=20;
-		output.direction_dock_s=0;
-		output.speed_dock_s=200;
+		output.direction_dock_m5_s=0;
+		output.speed_dock_m5_s=200;
 	}
 	else{
 		output.led_m[0]=0;
 		output.led_m[1]=0;
-		output.speed_dock_s=0;
+		output.speed_dock_m5_s=0;
 		}
 }
 
 //printf("%d \n\r", state);
 */
 /*
-			output.speed_bend_m=0;
-			output.speed_bend_s=0;
-			output.speed_dock_m=0;
-			output.speed_dock_s=0;
+			output.speed_bend_m3_m=0;
+			output.speed_bend_m3_s=0;
+			output.speed_dock_m5_m=0;
+			output.speed_dock_m5_s=0;
 
 		switch(state){
 			
@@ -803,15 +803,15 @@ else{
 			{
 				output.led_m[0]=30;
 				output.led_m[1]=0;	
-				output.direction_bend_m=1;
-				output.speed_bend_m=100;
+				output.direction_bend_m3_m=1;
+				output.speed_bend_m3_m=100;
 			}
 			else if(input.switch_dock_s==1)
 			{
 				output.led_s[0]=30;	
 				output.led_s[1]=0;
-				output.direction_bend_s=1;
-				output.speed_bend_s=100;
+				output.direction_bend_m3_s=1;
+				output.speed_bend_m3_s=100;
 			}
 		case 1: //wind
 			if((input.switch_dock_m==1)&(input.switch_dock_s==1)){
@@ -827,15 +827,15 @@ else{
 			{
 				output.led_m[0]=30;
 				output.led_m[1]=0;	
-				output.direction_bend_m=1;
-				output.speed_bend_m=100;
+				output.direction_bend_m3_m=1;
+				output.speed_bend_m3_m=100;
 			}
 			else if(input.switch_dock_s==1)
 			{
 				output.led_s[0]=30;	
 				output.led_s[1]=0;
-				output.direction_bend_s=1;
-				output.speed_bend_s=100;
+				output.direction_bend_m3_s=1;
+				output.speed_bend_m3_s=100;
 			}
 		}
 
@@ -845,10 +845,10 @@ else{
 		case 0: //do nothing and unwind motors
 			output.led_m[1]=20;
 			output.led_s[1]=20;
-			output.speed_bend_m=0;
-			output.speed_bend_s=0;
-			output.speed_dock_m=0;
-			output.speed_dock_s=0;
+			output.speed_bend_m3_m=0;
+			output.speed_bend_m3_s=0;
+			output.speed_dock_m5_m=0;
+			output.speed_dock_m5_s=0;
 			
 			if((input.switch_dock_m==1)&(input.switch_dock_s==1)){
 				state=10;
@@ -863,29 +863,29 @@ else{
 			{
 				output.led_m[0]=30;
 				output.led_m[1]=0;	
-				output.direction_bend_m=1;
-				output.speed_bend_m=100;
+				output.direction_bend_m3_m=1;
+				output.speed_bend_m3_m=100;
 			}
 			else if(input.switch_dock_s==1)
 			{
 				output.led_s[0]=30;	
 				output.led_s[1]=0;
-				output.direction_bend_s=1;
-				output.speed_bend_s=100;
+				output.direction_bend_m3_s=1;
+				output.speed_bend_m3_s=100;
 			}
 			break;
 
 		case 1:	//flipping
 			output.led_m[0]=20;
-			output.direction_dock_m=1; //spin the opposite dock motor to prevent attaching
-			output.speed_dock_m=gripperspd;
+			output.direction_dock_m5_m=1; //spin the opposite dock motor to prevent attaching
+			output.speed_dock_m5_m=gripperspd;
 			flipdir=0;
 			if (toggle<2){ //Do not attach before the going through neutral
 				if(toggle==0){
-					output.direction_bend_m=1; //master going back, slave going forward
-					output.direction_bend_s=0;
-					output.speed_bend_s=windspd;
-					output.speed_bend_m=unwindspd; //first unwind at a set speed
+					output.direction_bend_m3_m=1; //master going back, slave going forward
+					output.direction_bend_m3_s=0;
+					output.speed_bend_m3_s=windspd;
+					output.speed_bend_m3_m=unwindspd; //first unwind at a set speed
 					count++;
 					}
 				else{
@@ -909,9 +909,9 @@ else{
 				if (input.switch_dock_m==1){
 					count++;
 					if (count>2){
-						output.speed_bend_m=0;
-						output.speed_bend_s=0;
-						output.speed_dock_m=0;
+						output.speed_bend_m3_m=0;
+						output.speed_bend_m3_s=0;
+						output.speed_dock_m5_m=0;
 						output.led_m[0]=0;
 						output.led_m[2]=0;
 						count=0;
@@ -928,8 +928,8 @@ else{
 					}
 			}
 //			else{
-//			output.speed_bend_m=0;
-//			output.speed_bend_s=0;
+//			output.speed_bend_m3_m=0;
+//			output.speed_bend_m3_s=0;
 //			output.led_m[0]=0;
 //			count=0;
 //			toggle=0;
@@ -939,17 +939,17 @@ else{
 			break;
 
 		case 2: //flipping
-			output.direction_dock_s=1; //spin the opposite dock motor to prevent attaching
-			output.speed_dock_s=gripperspd;
+			output.direction_dock_m5_s=1; //spin the opposite dock motor to prevent attaching
+			output.speed_dock_m5_s=gripperspd;
 			output.led_s[0]=20;
 			flipdir=1;
 //			printf("m bend %d\n\r",input.bend_m);
 			if (toggle<2){ //Do not attach before the angle of slave board has changed by pi/2
 				if(toggle==0){
-					output.direction_bend_m=1; //master going back, slave going forward
-					output.direction_bend_s=0;
-					output.speed_bend_s=windspd;
-					output.speed_bend_m=unwindspd;
+					output.direction_bend_m3_m=1; //master going back, slave going forward
+					output.direction_bend_m3_s=0;
+					output.speed_bend_m3_s=windspd;
+					output.speed_bend_m3_m=unwindspd;
 					count++;
 					}
 				else{
@@ -972,9 +972,9 @@ else{
 				if (input.switch_dock_s==1){
 					count++;
 					if (count>2){
-						output.speed_bend_m=0;
-						output.speed_bend_s=0;
-						output.speed_dock_m=0;
+						output.speed_bend_m3_m=0;
+						output.speed_bend_m3_s=0;
+						output.speed_dock_m5_m=0;
 						output.led_s[0]=0;
 						output.led_s[2]=0;
 						count=0;
@@ -991,8 +991,8 @@ else{
 //			else if (input.bend_s<maxbend_s){
 //			printf("%d \n\r", input.bend_s);
 //			else{
-//			output.speed_bend_s=0;
-//			output.speed_bend_m=0;
+//			output.speed_bend_m3_s=0;
+//			output.speed_bend_m3_m=0;
 //			output.led_s[0]=0;
 //			toggle=0;
 //			printf("%d\n\r",input.bend_s);
@@ -1002,29 +1002,29 @@ else{
 
 		case 3: //attaching master side
 			output.led_m[1]=20;
-			output.speed_bend_s=0;
-			output.speed_bend_m=0;
+			output.speed_bend_m3_s=0;
+			output.speed_bend_m3_m=0;
 ////////////manual attachment
 //			if (input.switch_dock_m==1){
-//				output.direction_dock_m=1;
-//				output.speed_dock_m=200;
+//				output.direction_dock_m5_m=1;
+//				output.speed_dock_m5_m=200;
 //				toggle=1;
 //			printf("%c\n\r",toggle);
 //			}
 //			else if(toggle==1){
-//				output.speed_dock_m=0;
+//				output.speed_dock_m5_m=0;
 //				output.led_m[1]=0;
 //				state=7;
 //				}
 ///////////////////
 
 //// automatic attachment
-			output.direction_dock_m=0; 
-			output.speed_dock_m=0.7*gripperspd;
+			output.direction_dock_m5_m=0; 
+			output.speed_dock_m5_m=0.7*gripperspd;
 			if (count>20){
 				count=0;
 				output.led_m[1]=0;	
-				output.speed_dock_m=0;
+				output.speed_dock_m5_m=0;
 					//check current orientation of boards
 				m_angle=atan2((input.accell_s[0]),(input.accell_s[1]))*180/3.14159;
 				printf("%d \n\r", (int)m_angle); 
@@ -1036,17 +1036,17 @@ else{
 			break;
 		case 4: //attaching slave side
 			output.led_s[1]=20;
-			output.speed_bend_s=0;
-			output.speed_bend_m=0;
+			output.speed_bend_m3_s=0;
+			output.speed_bend_m3_m=0;
 
 ////////////manual attachment
 //			if (input.switch_dock_s==1){
-//				output.direction_dock_s=1;
-//				output.speed_dock_s=200;
+//				output.direction_dock_m5_s=1;
+//				output.speed_dock_m5_s=200;
 //				toggle=1;
 //			}
 //			else if(toggle==1){
-//				output.speed_dock_s=0;
+//				output.speed_dock_m5_s=0;
 //				output.led_s[1]=0;
 //				state=5;
 //				count=0;
@@ -1054,12 +1054,12 @@ else{
 ////////////
 
 /////automatic attachment
-			output.direction_dock_s=0;
-			output.speed_dock_s=0.7*gripperspd;
+			output.direction_dock_m5_s=0;
+			output.speed_dock_m5_s=0.7*gripperspd;
 			if (count>20){
 				count=0;
 				output.led_s[1]=0;
-				output.speed_dock_s=0;
+				output.speed_dock_m5_s=0;
 					//check current orientation of boards
 //				s_angle=atan2((input.accell_s[0]),(input.accell_s[1])); 
 				m_angle=atan2((input.accell_m[0]),(input.accell_m[1]))*180/3.14159;
@@ -1071,11 +1071,11 @@ else{
 //////
 			break;
 		case 5: //detaching the master side
-				output.speed_bend_m=0;
-				output.speed_bend_s=0;
+				output.speed_bend_m3_m=0;
+				output.speed_bend_m3_s=0;
 				output.led_m[2]=20;
-				output.direction_dock_m=1;
-				output.speed_dock_m=gripperspd;
+				output.direction_dock_m5_m=1;
+				output.speed_dock_m5_m=gripperspd;
 				side=0;
 				count++;
 				if (toggle==0){
@@ -1094,8 +1094,8 @@ else{
 			if ((input.switch_dock_m==0)&&(toggle==1)){
 					//check angle
 					state=-(flipdir-2);
-					output.speed_bend_m=0;
-					output.speed_bend_s=0;
+					output.speed_bend_m3_m=0;
+					output.speed_bend_m3_s=0;
 					output.led_m[2]=0;
 					count=0;
 					toggle=0;
@@ -1109,8 +1109,8 @@ else{
 			break;
 		case 6: //detaching the master side - flipping disturbance
 				output.led_m[2]=20;
-//				output.direction_dock_m=0;
-//				output.speed_dock_m=100;
+//				output.direction_dock_m5_m=0;
+//				output.speed_dock_m5_m=100;
 			if (count<3){
 				flipbend(-(flipdir-1), 10);
 				}
@@ -1138,8 +1138,8 @@ else{
 					state=-(flipdir-2);
 					count=0;
 					output.led_m[2]=0;
-					output.speed_bend_m=0;
-					output.speed_bend_s=0;
+					output.speed_bend_m3_m=0;
+					output.speed_bend_m3_s=0;
 					break;
 				}
 			if (count>3){
@@ -1148,11 +1148,11 @@ else{
 				}
 			break;
 		case 7: //detaching the slave side
-				output.speed_bend_m=0;
-				output.speed_bend_s=0;
+				output.speed_bend_m3_m=0;
+				output.speed_bend_m3_s=0;
 				output.led_s[2]=20;
-				output.direction_dock_s=1;
-				output.speed_dock_s=gripperspd;
+				output.direction_dock_m5_s=1;
+				output.speed_dock_m5_s=gripperspd;
 				side=0;
 				count++;
 				if (toggle==0){
@@ -1184,8 +1184,8 @@ else{
 			break;
 		case 8: //detaching the slave side - flipping disturbance
 				output.led_s[2]=20;
-//				output.direction_dock_m=0;
-//				output.speed_dock_m=100;
+//				output.direction_dock_m5_m=0;
+//				output.speed_dock_m5_m=100;
 			if (count<3){
 				flipbend(-(flipdir-1), 10);
 				}
@@ -1213,8 +1213,8 @@ else{
 					state=-(flipdir-2);
 					count=0;
 					output.led_s[2]=0;
-					output.speed_bend_m=0;
-					output.speed_bend_s=0;
+					output.speed_bend_m3_m=0;
+					output.speed_bend_m3_s=0;
 					break;
 				}
 			if (count>3){
@@ -1224,35 +1224,35 @@ else{
 			break;
 		case 9 : //unwind motors (reset the motors in error case)
 				if ((input.switch_tension_m==0)||(input.switch_tension_s==0)){
-					output.direction_bend_m=1;
-					output.direction_bend_s=1; //set both motor directiosn to backwards
-					output.speed_bend_m=unwindspd; 
-					output.speed_bend_s=unwindspd;
+					output.direction_bend_m3_m=1;
+					output.direction_bend_m3_s=1; //set both motor directiosn to backwards
+					output.speed_bend_m3_m=unwindspd; 
+					output.speed_bend_m3_s=unwindspd;
 				}
 				else {
-					output.speed_bend_m=0; 
-					output.speed_bend_s=0;
+					output.speed_bend_m3_m=0; 
+					output.speed_bend_m3_s=0;
 					state=state0; //reset back to original state
 					}
 			break;
 		case 10: //rewind motors
-			output.direction_bend_m=0;
-			output.direction_bend_s=0;
+			output.direction_bend_m3_m=0;
+			output.direction_bend_m3_s=0;
 			if ((input.switch_dock_m==0)&(input.switch_dock_s==0)){
 				toggle=1;
 				}
 			if (toggle==1){
 				if(input.switch_tension_s==1){
-					output.speed_bend_m=60;
+					output.speed_bend_m3_m=60;
 					}
 				else {
-					output.speed_bend_m=0;
+					output.speed_bend_m3_m=0;
 					}
 				if(input.switch_tension_m==1) {
-					output.speed_bend_s=60;
+					output.speed_bend_m3_s=60;
 					}
 				else {
-					output.speed_bend_s=0;
+					output.speed_bend_m3_s=0;
 					}	
 				}
 			if ((input.switch_tension_s==0)&(input.switch_tension_m==0)&(toggle=1)){
@@ -1267,8 +1267,8 @@ else{
 		case 11: //attach or detach slave side
 				output.led_m[0]=20;
 			if ((input.switch_dock_m==1)&&(input.switch_dock_s==1)){
-				output.speed_dock_s=0;
-				output.speed_dock_m=0;
+				output.speed_dock_m5_s=0;
+				output.speed_dock_m5_m=0;
 				output.led_s[0]=0;
 				output.led_s[1]=0;
 				output.led_m[0]=0;
@@ -1279,26 +1279,26 @@ else{
 			else if (input.switch_dock_m==1){
 				output.led_s[0]=20;
 				output.led_s[1]=0;
-				output.direction_dock_s=0;
-				output.speed_dock_s=0.7*gripperspd;
+				output.direction_dock_m5_s=0;
+				output.speed_dock_m5_s=0.7*gripperspd;
 				}
 			else if (input.switch_dock_s==1){
 				output.led_s[0]=0;
 				output.led_s[1]=20;
-				output.direction_dock_s=1;
-				output.speed_dock_s=gripperspd;
+				output.direction_dock_m5_s=1;
+				output.speed_dock_m5_s=gripperspd;
 				}
 			else{
 				output.led_s[0]=0;
 				output.led_s[1]=0;
-				output.speed_dock_s=0;
+				output.speed_dock_m5_s=0;
 				}
 				break;
 	case 12: //attach or detach master side
 			output.led_s[0]=20;
 		if ((input.switch_dock_m==1)&&(input.switch_dock_s==1)){
-			output.speed_dock_s=0;
-			output.speed_dock_m=0;
+			output.speed_dock_m5_s=0;
+			output.speed_dock_m5_m=0;
 			output.led_m[0]=0;
 			output.led_m[1]=0;
 			output.led_s[0]=0;
@@ -1311,19 +1311,19 @@ else{
 		else if (input.switch_dock_m==1){
 			output.led_m[0]=20;
 			output.led_m[1]=0;
-			output.direction_dock_m=0;
-			output.speed_dock_m=0.7*gripperspd;
+			output.direction_dock_m5_m=0;
+			output.speed_dock_m5_m=0.7*gripperspd;
 		}
 		else if (input.switch_dock_s==1){
 			output.led_m[0]=0;
 			output.led_m[1]=20;
-			output.direction_dock_m=1;
-			output.speed_dock_m=gripperspd;
+			output.direction_dock_m5_m=1;
+			output.speed_dock_m5_m=gripperspd;
 		}
 		else{
 			output.led_m[0]=0;
 			output.led_m[1]=0;
-			output.speed_dock_m=0;
+			output.speed_dock_m5_m=0;
 			}
 			break;
 
@@ -1340,18 +1340,18 @@ else{
 
 			//example setting all outputs under our control
 			//slave side
-			output.speed_bend_s=0; //speed of bend motor for slave 0-255
-			output.speed_dock_s=1; //speed of dock motor for slave 0-255
-			output.direction_dock_s=2; //direction of dock motor for slave 0,1
-			output.direction_bend_s=3; //direction of bend motor for slave 0,1
+			output.speed_bend_m3_s=0; //speed of bend motor for slave 0-255
+			output.speed_dock_m5_s=1; //speed of dock motor for slave 0-255
+			output.direction_dock_m5_s=2; //direction of dock motor for slave 0,1
+			output.direction_bend_m3_s=3; //direction of bend motor for slave 0,1
 			output.led_s[0]=4; //slave led (RED)0-255
 			output.led_s[1]=5;//slave led (GREEN)0-255
 			output.led_s[2]=6;//slave led(BLUE)0-255
 			//master side		
-			output.speed_bend_m=0; //master of bend motor for slave 0-255
-			output.speed_dock_m=1; //master of dock motor for slave 0-255
-			output.direction_dock_m=2; //direction of dock motor for master 0,1
-			output.direction_bend_m=3; //direction of bend motor for master 0,1
+			output.speed_bend_m3_m=0; //master of bend motor for slave 0-255
+			output.speed_dock_m5_m=1; //master of dock motor for slave 0-255
+			output.direction_dock_m5_m=2; //direction of dock motor for master 0,1
+			output.direction_bend_m3_m=3; //direction of bend motor for master 0,1
 			output.led_m[0]=4; //master led (RED)0-255
 			output.led_m[1]=5;//master led (GREEN)0-255
 			output.led_m[2]=6;//master led(BLUE)0-255
@@ -1646,26 +1646,26 @@ int switch_dock(void) //consider renaming (control switch)
 void flipbend(char side, char p){
 	//p a percentage to vary speed. 
 	if (side==1){ //master side
-			output.direction_bend_m=0; //master going forward, slave going back
-			output.direction_bend_s=1;
+			output.direction_bend_m3_m=0; //master going forward, slave going back
+			output.direction_bend_m3_s=1;
 		if(input.switch_tension_m==0){
-			output.speed_bend_s=unwindspd*p/10;
+			output.speed_bend_m3_s=unwindspd*p/10;
 		}
 		else {
-			output.speed_bend_s=0;
+			output.speed_bend_m3_s=0;
 		}
-	output.speed_bend_m=windspd*p/10;	
+	output.speed_bend_m3_m=windspd*p/10;	
 	}
 	else{ //slave side
-		output.direction_bend_m=1; //slave going forward, master going back
-		output.direction_bend_s=0;
+		output.direction_bend_m3_m=1; //slave going forward, master going back
+		output.direction_bend_m3_s=0;
 		if(input.switch_tension_s==0){
-			output.speed_bend_m=unwindspd*p/10;
+			output.speed_bend_m3_m=unwindspd*p/10;
 		}
 		else {
-			output.speed_bend_m=0;
+			output.speed_bend_m3_m=0;
 		}
-	output.speed_bend_s=windspd*p/10;
+	output.speed_bend_m3_s=windspd*p/10;
 	}
 }
 
@@ -1735,13 +1735,13 @@ int get_bend(void)
 void master_output_update() //motor updates
 {
 
-	if(output.direction_dock_m==0)
+	if(output.direction_dock_m5_m==0)
 	{
 //		DDRC |= (1<<2); //old HB2-2 is PC2, now PB6
 //		PORTC &= ~(1<<2);
 		DDRB |= (1<<6);
 		PORTB &= ~(1<<6);
-		OCR0B = output.speed_dock_m;
+		OCR0B = output.speed_dock_m5_m;
 
 	}
 	else
@@ -1750,17 +1750,17 @@ void master_output_update() //motor updates
 //		PORTC |= (1<<2);
 		DDRB |= (1<<6);
 		PORTB |= (1<<6);
-		OCR0B = 255-output.speed_dock_m;
+		OCR0B = 255-output.speed_dock_m5_m;
 	}
 
 
-	if(output.direction_bend_m==0)
+	if(output.direction_bend_m3_m==0)
 	{
 //		DDRC |= (1<<3); //old HB1-2 is PC3, now PB7
 //		PORTC &= ~(1<<3);
 		DDRB |= (1<<7);
 		PORTB &= ~(1<<7);
-		OCR0A = output.speed_bend_m;
+		OCR0A = output.speed_bend_m3_m;
 
 	}
 	else
@@ -1769,7 +1769,7 @@ void master_output_update() //motor updates
 //		PORTC |= (1<<3);
 		DDRB |= (1<<7);
 		PORTB |= (1<<7);
-		OCR0A = 255-output.speed_bend_m;
+		OCR0A = 255-output.speed_bend_m3_m;
 	}
 
 	if (output.vibration_m==1)
