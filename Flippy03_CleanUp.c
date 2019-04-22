@@ -133,7 +133,7 @@ void ioinit (void) { //usart
     stdout = &mystdout; //???
 
 }
-////////
+////////cd
 
 void init(void)
 {
@@ -151,34 +151,34 @@ void init(void)
 	sleep_mode=0;
 	//power on 
 	output(vreg1_port_direction, vreg1_pin);
-	set(vreg1_port, vreg1_pin);
-	//DDRC |= (1<<0); //output PortC0
-	//PORTC |= (1<<0);  //turn on PortC0 (Vreg1)
+	set(vreg1_port, vreg1_pin); //turn on PC0 (vreg1)
+	//DDRC |= (1<<0); //output PC0
+	//PORTC |= (1<<0);  //turn on PC0 (Vreg1)
 
 	output(led_port_direction, led_pin); 	//rgb led init
 
-	DDRB &= ~(1<<1); //tension switch as input
-	DDRD &= ~(1<<4); //gripper/control switch as input
-	DDRD &= ~(1<<3);//power switch as input
+	DDRB &= ~(1<<1); //tension switch as input PB1
+	DDRD &= ~(1<<4); //gripper/control switch as input PD4
+	DDRD &= ~(1<<3);//power switch as input PD3
 
-	DDRD |= (1<<5); //Hbridge 2-1 output
-	DDRD |= (1<<6); //Hbridge 1-1 output
+	DDRB |= (1<<6); //Hbridge 2-1 output PB6
+	DDRB |= (1<<7); //Hbridge 1-1 output PB7
 	TCCR0A |= (1<<COM0A1) | (1<<COM0B1) | (1<<WGM00); //Timer counter init
 	TCCR0B =0x03; //prescaler set to 0
-	OCR0B = 0x00;//start with motor off
-	OCR0A = 0x00;//start with motor off
-	DDRB |= (1<<0); //vibration motor output
+	OCR0B = 0x00;//start with motor off (PD5)
+	OCR0A = 0x00;//start with motor off (PD6)
+	DDRB |= (1<<0); //vibration motor output PB0
 
-	DDRC &= ~(1<<1); //flex sensor as input
-	DDRC &= ~(1<<2); //IR1 as input
-	DDRC &= ~(1<<3); //IR2/strain gage as input
+	DDRC &= ~(1<<1); //flex sensor as input (PC1)
+	DDRC &= ~(1<<2); //IR1 as input (PC2)
+	DDRC &= ~(1<<3); //IR2/strain gage as input (PC3)
 	//initalize adc
 	ADMUX &= (1<<REFS0); //|(1<<MUX0);//choose analog pin  
 	ADCSRA = (1<<ADEN) | (1<<ADPS0); //set up a/d
 
 			//enable power switch interrupt
-	DDRD |= 1<<3;		// Set PD2 as input (Using for interupt INT0)
-	PORTD |= 1<<3;		// Enable PD2 pull-up resistor
+	DDRD &= ~(1<<2);		// Set PD2 as input (Using for interupt INT0) 
+	PORTD |= 1<<2;		// Enable PD2 pull-up resistor / Check datasheet ???
 	EIMSK = 1<<1;					// Enable INT0
 	EICRA = 1<<ISC01 | 1<<ISC00;	// Trigger INT0 on rising edge 
 
@@ -219,13 +219,63 @@ int main(void)
             _delay_ms(500);
 
             setLED(0,0,0);
-						printf("We can print without i2c");
+			
+			printf("We can print without i2c");
+
+			output.direction_bend_m=0; // 0 positive
+			output.speed_bend_m=200;
+
 						
 			//you can adjust this delay.. eventually if too small it may cause problems, but you can fix this by changing it back
 			_delay_ms(20);
+			master_output_update();
 
 	}
 
+}
+
+void master_output_update() //motor updates
+{
+
+	if(output.direction_dock_m==0)
+	{
+		DDRB |= (1<<6);
+		PORTB &= ~(1<<6);
+		OCR0B = output.speed_dock_m;
+
+	}
+	else
+	{
+		DDRB |= (1<<6);
+		PORTB |= (1<<6);
+		OCR0B = 255-output.speed_dock_m;
+	}
+
+
+	if(output.direction_bend_m==0)
+	{
+		DDRB |= (1<<7);
+		PORTB &= ~(1<<7);
+		OCR0A = output.speed_bend_m;
+
+	}
+	else
+	{
+		DDRB |= (1<<7);
+		PORTB |= (1<<7);
+		OCR0A = 255-output.speed_bend_m;
+	}
+
+	if (output.vibration_m==1)
+	{	
+		DDRB |=(1<<0); //Vibration motor PB0
+		PORTB |=(1<<0);
+	}
+	else 
+	{
+		DDRB |= (1<<0); //Vibration motor PB0
+		PORTB &= ~(1<<0);
+	}
 }
 
 void setLED(unsigned char red, unsigned char green, unsigned char blue)
