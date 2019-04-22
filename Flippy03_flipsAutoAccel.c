@@ -1,4 +1,4 @@
-#define F_CPU 8000000UL
+#define F_CPU 8000000UL // not used to be removed
 
 #include <avr/eeprom.h>
 #include <avr/io.h>
@@ -15,10 +15,10 @@
 #define MYUBRR (((((FOSC * 10) / (16L * BAUD)) + 5) / 10))
 
 
-#define ee_POWER_STATE 0x00
+#define ee_POWER_STATE 0x00 // not used to be removed
 #define accell_slave  0b11010000
 #define	accell_master 0b11010010
-#define atmega_slave 0xf0
+#define atmega_slave 0xf0 // slave address, to be renamed to something more meaningful
 #define num_a2d_samples 15 //bend sensor sample size
 
 //Flip Parameters:

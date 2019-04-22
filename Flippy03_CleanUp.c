@@ -1,5 +1,3 @@
-#define F_CPU 8000000UL //???
-
 #include <avr/eeprom.h>
 #include <avr/io.h>
 #include <avr/wdt.h>
@@ -10,15 +8,15 @@
 #include <math.h>
 #include <stdio.h>
 #include <avr/interrupt.h>
-#define FOSC 8000000 //???
-#define BAUD 9600
-#define MYUBRR (((((FOSC * 10) / (16L * BAUD)) + 5) / 10)) //???
 
-#define ee_POWER_STATE 0x00 //???
+#define FOSC 8000000 // oscillator clock frequency, page 166 datasheet, not sure why it's set to this value though
+#define BAUD 9600 // baud rate desired
+#define MYUBRR (((((FOSC * 10) / (16L * BAUD)) + 5) / 10)) // used to set the UBRR high and low registers, Usart Baud Rate registers, not sure about the formulat though, see datasheet page 146
+
 #define accell_slave_addrs  0b11010000
 #define	accell_master_addrs 0b11010010
-#define atmega_slave 0xf0 //???
-#define led_wrt_cmd 0x3A //led driver write command
+#define atmega_slave 0xf0 // slave address, should be renamed to something more meaningful
+#define led_wrt_cmd 0x3A // led driver write command
 
 //////////////////////////////////////
 //
@@ -106,14 +104,13 @@ struct outputs{
 struct outputs output;
 struct inputs input;
 
-//Define helper variables
+// define helper variables
 static uint8_t power_state; //
 static uint8_t toggle_wakeup; //variable for power/sleep function
 static uint8_t sleep_mode; //
 
-/////////
-//setup for printf
-int uart_putchar(char c, FILE *stream) { //
+// setup for printf
+int uart_putchar(char c, FILE *stream) {
     if (c == '\n') 
         uart_putchar('\r', stream); 
     loop_until_bit_is_set(UCSR0A, UDRE0); 
@@ -121,7 +118,12 @@ int uart_putchar(char c, FILE *stream) { //
 
     return 0; 
 }
-FILE mystdout = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE); //???
+
+/* #define FDEV_SETUP_STREAM(put, get, rwflag) from stdio.h	
+Initializer for a user-supplied stdio stream. 
+This macro acts similar to fdev_setup_stream(), used as the initializer of a variable of type FILE.
+*/
+FILE mystdout = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
 
 //Don't understand, but this is also necessary for printf
 void ioinit (void) { //usart
@@ -129,8 +131,14 @@ void ioinit (void) { //usart
     UBRR0L = MYUBRR;  
     UCSR0B = (1<<TXEN0);
     
-    fdev_setup_stream(&mystdout, uart_putchar, NULL, _FDEV_SETUP_WRITE); //???
-    stdout = &mystdout; //???
+    /* #define fdev_setup_stream(stream, put, get, rwflag) from stdio.h	
+	Setup a user-supplied buffer as an stdio stream.
+	This macro takes a user-supplied buffer stream, and sets it up as a stream that is valid for stdio operations, 
+	similar to one that has been obtained dynamically from fdevopen(). The buffer to setup must be of type FILE.
+	The rwflag argument can take one of the values _FDEV_SETUP_READ, _FDEV_SETUP_WRITE, or _FDEV_SETUP_RW, for read, write, or read/write intent, respectively.
+    */
+    fdev_setup_stream(&mystdout, uart_putchar, NULL, _FDEV_SETUP_WRITE);
+    stdout = &mystdout;
 
 }
 ////////cd
@@ -138,7 +146,7 @@ void ioinit (void) { //usart
 void init(void)
 {
 
-	//Zero all ports
+	// all ports as output, all outputs driven low
 	DDRB=0;
 	PORTB=0;
 	DDRC=0;
@@ -146,7 +154,7 @@ void init(void)
 	DDRD=0;
 	PORTD=0;
 
-	 ioinit(); //usart init
+	ioinit(); // Usart init
 
 	sleep_mode=0;
 	//power on 
@@ -155,7 +163,7 @@ void init(void)
 	//DDRC |= (1<<0); //output PC0
 	//PORTC |= (1<<0);  //turn on PC0 (Vreg1)
 
-	output(led_port_direction, led_pin); 	//rgb led init
+	output(led_port_direction, led_pin); 	// RGB led init
 
 	DDRB &= ~(1<<1); //tension switch as input PB1
 	DDRD &= ~(1<<4); //gripper/control switch as input PD4
@@ -206,7 +214,6 @@ ISR(TWI_vect) //SIG_2WIRE_SERIAL - 2 wire Serial interface
 
 int main(void)
 {
-
 	init();	
 	sei();	
 
