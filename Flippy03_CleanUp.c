@@ -1,3 +1,5 @@
+#define F_CPU 8000000UL // used by delay.h
+
 #include <avr/eeprom.h>
 #include <avr/io.h>
 #include <avr/wdt.h>
@@ -123,7 +125,8 @@ int uart_putchar(char c, FILE *stream) {
 Initializer for a user-supplied stdio stream. 
 This macro acts similar to fdev_setup_stream(), used as the initializer of a variable of type FILE.
 */
-FILE mystdout = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
+//FILE mystdout = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
+FILE mystdout;
 
 //Don't understand, but this is also necessary for printf
 void ioinit (void) { //usart
@@ -141,12 +144,11 @@ void ioinit (void) { //usart
     stdout = &mystdout;
 
 }
-////////cd
 
 void init(void)
 {
 
-	// all ports as output, all outputs driven low
+	// all ports as input, pull-up resistors deactivated, all pins on Hi-Z
 	DDRB=0;
 	PORTB=0;
 	DDRC=0;
@@ -195,11 +197,15 @@ void init(void)
     //dock motor off
 	DDRB |= (1<<6);
 	PORTB &= ~(1<<6);
+	DDRD |= (1<<6);
+	PORTD &= ~(1<<6);
 	OCR0B = 0;	
 	
 	//bend motor off
 	DDRB |= (1<<7);
 	PORTB &= ~(1<<7);
+	DDRD |= (1<<5);
+	PORTD &= ~(1<<5);
 	OCR0A = 0;
 
 	power_state=1;
