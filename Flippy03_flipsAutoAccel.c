@@ -1677,9 +1677,9 @@ double get_accel_diff(void){
 int get_IR1(void)
 {	
 	     //initalize adc
-		ADMUX &= (1<<REFS0); //choose reference and clear analog pins
-		ADMUX |=(1<<MUX0);//choose analog pin ADC2
-		ADCSRA = (1<<ADEN) |    (1<<ADPS0); //set up a/d
+		ADMUX &= (1<<REFS0); //choose reference and clear analog pins, AVcc chosen as AREF
+		ADMUX |=(1<<MUX0);//choose analog pin ADC1 connected to Flex/IR2
+		ADCSRA = (1<<ADEN) |    (1<<ADPS0); //ADEN set makes ADC enabled, ADPS0..2 selects ADC clock vs system clock, here divided by 2
 
 
 
@@ -1698,7 +1698,7 @@ int get_IR2(void)
 {	
 	     //initalize adc
 		ADMUX &= (1<<REFS0); //choose reference and clear analog pins
-		ADMUX |=0x02;//choose analog pin ADC3
+		ADMUX |=0x02;//choose analog pin ADC2 connected to IR1
 		ADCSRA = (1<<ADEN) |    (1<<ADPS0); //set up a/d
 
 
