@@ -16,8 +16,8 @@
 
 
 #define ee_POWER_STATE 0x00 // not used to be removed
-#define accell_slave  0b11010000
-#define	accell_master 0b11010010
+#define accell_slave  0b11010000 //address if accel is on slave board
+#define	accell_master 0b11010010 //address if accel is on master board
 #define atmega_slave 0xf0 // slave address, to be renamed to something more meaningful
 #define num_a2d_samples 15 //bend sensor sample size
 
@@ -138,7 +138,7 @@ void init(void)
 
 	DDRD |= (1<<5); //Hbridge 2-1 output
 	DDRD |= (1<<6); //Hbridge 1-1 output
-	TCCR0A |= (1<<COM0A1) | (1<<COM0B1) | (1<<WGM00); //init counter for PWM for motors ?
+	TCCR0A |= (1<<COM0A1) | (1<<COM0B1) | (1<<WGM00); //init counter for PWM for motors ? 
 	TCCR0B =0x03; //prescaler set to 0
 	OCR0B = 0x00;//start with motor off
 	OCR0A = 0x00;//start with motor off
@@ -203,7 +203,7 @@ int i2c_send()
 
 
 
-	//Load read addres of slave in to TWDR, 
+	//Load read address of slave in to TWDR, 
 	TWDR=atmega_slave ;	 
 
 	//start transmission
@@ -464,7 +464,7 @@ uint8_t i2c_write_accell(uint8_t accell,uint8_t address,uint8_t data)
 	if((TWSR & 0xF8) != 0x08)
 	printf("twi error\n\r");
 
-	//Load write addres of slave in to TWDR, 
+	//Load write address of slave in to TWDR, 
 	
 	//uint8_t SLA_W=0b11010000;
 	uint8_t SLA_W=accell;
@@ -1686,7 +1686,7 @@ int get_IR1(void)
 
 		//when the following code was in main, while loop started here
 		ADCSRA |= (1<<ADSC);//start adc conversion to sample sensor with led off
-		while((ADCSRA&(1<<ADSC))!=0);//busy wait for converstion to end
+		while((ADCSRA&(1<<ADSC))!=0);//busy wait for conversion to end
 
 //		printf("%d \n\r",ADCW);	
 
@@ -1704,7 +1704,7 @@ int get_IR2(void)
 
 		//when the following code was in main, while loop started here
 		ADCSRA |= (1<<ADSC);//start adc conversion to sample sensor with led off
-		while((ADCSRA&(1<<ADSC))!=0);//busy wait for converstion to end
+		while((ADCSRA&(1<<ADSC))!=0);//busy wait for conversion to end
 
 //		printf("%d \n\r",ADCW);	
 

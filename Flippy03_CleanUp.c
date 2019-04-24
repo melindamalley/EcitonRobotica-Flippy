@@ -217,6 +217,157 @@ ISR(TWI_vect) //SIG_2WIRE_SERIAL - 2 wire Serial interface
 {
 }	
 
+uint8_t i2c_write_accell(uint8_t accell,uint8_t address,uint8_t data)
+{
+	//start twi transmission
+	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
+
+	//wait for TWCR flag to set indication start is transmitted
+	while(!(TWCR &(1<<TWINT)));
+
+	//check to see if start is an error or not
+	if((TWSR & 0xF8) != 0x08)
+	printf("twi error\n\r");
+
+	//Load write address of slave in to TWDR, 
+	
+	//uint8_t SLA_W=0b11010000;
+	uint8_t SLA_W=accell;
+	TWDR=SLA_W;
+
+	//start transmission
+	TWCR=(1<<TWINT)|(1<<TWEN);
+
+	//wait for TWINT flag to se, indicating transmission and ack/nack receive
+	while(!(TWCR & (1<<TWINT)));
+
+	//check to see if ack received
+	if((TWSR & 0xF8) != 0x18)	
+	printf("first ack problem 0x%x \n\r",(TWSR & 0xF8));
+//	printf("ack recieved OK 0x%x \n\r",(TWSR & 0xF8));
+
+
+	//send data, in this case an address
+	TWDR=address;//0x6b;// accell x value msb's
+	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
+
+	while(!(TWCR&(1<<TWINT)));//wait for data to tx
+
+	//check for data ack	
+	if((TWSR & 0xF8) != 0x28)	
+	printf("second ack problem is 0x%x\n\r",(TWSR & 0xF8));
+//	printf("second ack received OK is 0x%x\n\r",(TWSR & 0xF8));
+
+
+/////
+
+	//send data, in this case an address
+	TWDR=data;//0x00;// accell x value msb's
+	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
+
+	while(!(TWCR&(1<<TWINT)));//wait for data to tx
+
+	//check for data ack	
+	if((TWSR & 0xF8) != 0x28)	
+	printf("third ack problem is 0x%x\n\r",(TWSR & 0xF8));
+//	printf("third ack received OK is 0x%x\n\r",(TWSR & 0xF8));
+
+	//send stop bit
+	TWCR = (1<<TWINT)|(1<<TWSTO);
+
+	return(0);
+
+}
+uint8_t i2c_read_accell(uint8_t accell,uint8_t address)
+{
+
+	//start twi transmission
+	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
+
+	//wait for TWCR flag to set indication start is transmitted
+	while(!(TWCR &(1<<TWINT)));
+
+	//check to see if start is an error or not
+	if((TWSR & 0xF8) != 0x08)
+	printf("twi error\n\r");
+
+	//Load write addres of slave in to TWDR, 
+	//uint8_t	SLA_W=0b11010000;
+	uint8_t	SLA_W=accell;
+	TWDR=SLA_W;
+
+	//start transmission
+	TWCR=(1<<TWINT)|(1<<TWEN);
+
+	//wait for TWINT flag to se, indicating transmission and ack/nack receive
+	while(!(TWCR & (1<<TWINT)));
+
+	//check to see if ack received
+	if((TWSR & 0xF8) != 0x18)	
+	printf("first ack problem 0x%x \n\r",(TWSR & 0xF8));
+//	printf("ack recieved OK 0x%x \n\r",(TWSR & 0xF8));
+
+	//send data, in this case an address
+	TWDR=address;// accell x value msb's
+	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
+
+	while(!(TWCR&(1<<TWINT)));//wait for data to tx
+
+	//check for data ack	
+	if((TWSR & 0xF8) != 0x28)	
+	printf("second ack problem is 0x%x\n\r",(TWSR & 0xF8));
+//	printf("second ack received OK is 0x%x\n\r",(TWSR & 0xF8));
+
+	//send stop bit
+	TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWSTO);
+
+
+	////master receiver mode
+	//start twi transmission
+	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
+
+	//wait for TWCR flag to set indication start is transmitted
+	while(!(TWCR &(1<<TWINT)));
+
+
+	//check to see if start is an error or not
+	if((TWSR & 0xF8) != 0x10)
+	printf("start condition error 0x%x\n\r",(TWSR & 0xF8));
+
+	//Load read addres of slave in to TWDR, 
+	 SLA_W=accell | 1;//	 SLA_W=0b11010001;
+	TWDR=SLA_W;
+
+	//start transmission
+	TWCR=(1<<TWINT)|(1<<TWEN);
+
+	//wait for TWINT flag to se, indicating transmission and ack/nack receive
+	while(!(TWCR & (1<<TWINT)));
+
+	//check to see if ack received
+	if((TWSR & 0xF8) != 0x40)	
+	printf("third ack problem 0x%x \n\r",(TWSR & 0xF8));
+//	printf("third ack recieved OK 0x%x \n\r",(TWSR & 0xF8));
+	
+	TWCR = (1<<TWINT)|(1<<TWEN);
+
+	
+//wait for TWINT flag to se, indicating transmission and ack/nack receive
+	while(!(TWCR & (1<<TWINT)));
+
+	//check to see if ack received
+	if((TWSR & 0xF8) != 0x58)	
+	printf("third ack problem 0x%x \n\r",(TWSR & 0xF8));
+//	printf("third ack recieved OK 0x%x \n\r",(TWSR & 0xF8));
+	
+	TWCR = (1<<TWINT)|(1<<TWSTO);
+//wait for TWINT flag to se, indicating transmission and ack/nack receive
+	//while(!(TWCR & (1<<TWINT)));
+	//_delay_ms(10);
+	return TWDR;
+
+}
+
 
 int main(void)
 {
@@ -233,19 +384,21 @@ int main(void)
 
             setLED(0,0,0);
 			
-			printf("We can print without i2c");
+//			printf("We can print without i2c");
 
 
-			output.speed_dock_m5_m=0;
-			output.direction_dock_m5_m=0;
+//			output.speed_dock_m5_m=125;
+//			output.direction_dock_m5_m=1;
 //			output.direction_bend_m3_m=0; // 0 positive
-//			output.speed_bend_m3_m=60;
+//			output.speed_bend_m3_m=125;
+//			output.vibration_m=0;
+//			printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
 
 						
 			//you can adjust this delay.. eventually if too small it may cause problems, but you can fix this by changing it back
 			_delay_ms(20);
-			master_output_update();
-
+//			master_output_update();
+//			master_input_update();
 	}
 
 }
@@ -292,6 +445,47 @@ void master_output_update() //motor updates
 		DDRB |= (1<<0); //Vibration motor PB0
 		PORTB &= ~(1<<0);
 	}
+}
+
+void master_input_update()  
+{
+//	input.switch_dock_m=switch_dock();
+//	input.switch_tension_m=switch_tension1();
+//	input.bend_m=get_bend();
+	input.IR1_m=get_IR1();
+//	printf("%d \n\r",input.IR1_m);
+	input.IR2_m=get_IR2();
+//	printf("%d \n\r",input.IR2_m);
+
+		//get accel data from master side
+	
+	//i2c_write_accell( 0b11010010,0x1c,0b11100000);
+/*
+	i2c_write_accell( 0b11010010,0x6b,0);
+	int x=((i2c_read_accell( 0b11010010, 0x3b)<<8)&0xff00)+(i2c_read_accell( 0b11010010, 0x3c)&0x00ff);
+	int y=((i2c_read_accell( 0b11010010, 0x3d)<<8)&0xff00)+(i2c_read_accell( 0b11010010, 0x3e)&0x00ff);			
+	int z=((i2c_read_accell( 0b11010010, 0x3f)<<8)&0xff00)+(i2c_read_accell( 0b11010010, 0x40)&0x00ff);
+		//convert from 2's complement
+    if(x>0x8000)
+    {
+        x=x ^ 0xffff;
+        x=-x-1;
+    }
+	if(y>0x8000)
+    {
+        y=y ^ 0xffff;
+        y=-y-1;
+    }
+	if(z>0x8000)
+    {
+        z=z ^ 0xffff;
+        z=-z-1;
+    }
+
+	input.accell_m[0]=x;
+	input.accell_m[1]=y;
+	input.accell_m[2]=z;
+	*/
 }
 
 void setLED(unsigned char red, unsigned char green, unsigned char blue)
