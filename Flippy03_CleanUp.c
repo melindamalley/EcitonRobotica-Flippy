@@ -17,7 +17,7 @@
 
 #define accell_slave_addrs  0b11010000
 #define	accell_master_addrs 0b11010010
-#define atmega_slave 0xf0 // slave address, should be renamed to something more meaningful
+#define atmega_slave 0xf0 // // address of the slave board processor, to be renamed to something more meaningful e.g. MCU_slave_address
 #define led_wrt_cmd 0x3A // led driver write command
 
 //////////////////////////////////////
@@ -61,6 +61,8 @@ int switch_power(void);
 int switch_tension1(void);
 int switch_dock(void);
 int get_bend(void);
+int get_IR_Flex_U1513(void);
+int get_IR_U5(void);
 void master_output_update(void);
 void master_input_update(void);
 void flipbend(char side, char p);
@@ -79,7 +81,7 @@ struct inputs{
 	uint8_t switch_dock_s;
 	int bend_s;
 	int bend_m;
-	int IR1_m;
+	int IR1_m; 
 	int IR2_m;
 	int accell_m[3];
 	int accell_s[3]; 
@@ -179,11 +181,11 @@ void init(void)
 	OCR0A = 0x00;//start with motor off (PD6)
 	DDRB |= (1<<0); //vibration motor output PB0
 
-	DDRC &= ~(1<<1); //flex sensor as input (PC1)
+	DDRC &= ~(1<<1); //IR2 or flex sensor as input (PC1)
 	DDRC &= ~(1<<2); //IR1 as input (PC2)
-	DDRC &= ~(1<<3); //IR2/strain gage as input (PC3)
+	DDRC &= ~(1<<3); //strain gage as input (PC3)
 	//initalize adc
-	ADMUX &= (1<<REFS0); //|(1<<MUX0);//choose analog pin  
+	ADMUX = (1<<REFS0); //|(1<<MUX0);//choose analog pin  
 	ADCSRA = (1<<ADEN) | (1<<ADPS0); //set up a/d
 
 			//enable power switch interrupt
@@ -387,13 +389,16 @@ int main(void)
 //			printf("We can print without i2c");
 
 
-//			output.speed_dock_m5_m=125;
-//			output.direction_dock_m5_m=1;
-//			output.direction_bend_m3_m=0; // 0 positive
-//			output.speed_bend_m3_m=125;
-//			output.vibration_m=0;
+//			output.speed_dock_m5_m=225;
+//			output.direction_dock_m5_m=0;
+//			output.direction_bend_m3_m=1; // 0 positive
+//			output.speed_bend_m3_m=225;
+//			output.vibration_m=1;
 //			printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
-
+//			printf("IR %d %d \n\r", input.IR1_m, input.IR2_m);
+//			input.IR2_m=get_IR_U5();
+			input.IR1_m=get_IR_Flex_U1513();
+			printf("IR %d \n\r", input.IR1_m); //for bend sensor reading only - note change function name to reflect.
 						
 			//you can adjust this delay.. eventually if too small it may cause problems, but you can fix this by changing it back
 			_delay_ms(20);
@@ -452,19 +457,19 @@ void master_input_update()
 //	input.switch_dock_m=switch_dock();
 //	input.switch_tension_m=switch_tension1();
 //	input.bend_m=get_bend();
-	input.IR1_m=get_IR1();
+	input.IR1_m=get_IR_Flex_U1513();
 //	printf("%d \n\r",input.IR1_m);
-	input.IR2_m=get_IR2();
+	input.IR2_m=get_IR_U5();
 //	printf("%d \n\r",input.IR2_m);
 
 		//get accel data from master side
 	
 	//i2c_write_accell( 0b11010010,0x1c,0b11100000);
-/*
-	i2c_write_accell( 0b11010010,0x6b,0);
-	int x=((i2c_read_accell( 0b11010010, 0x3b)<<8)&0xff00)+(i2c_read_accell( 0b11010010, 0x3c)&0x00ff);
-	int y=((i2c_read_accell( 0b11010010, 0x3d)<<8)&0xff00)+(i2c_read_accell( 0b11010010, 0x3e)&0x00ff);			
-	int z=((i2c_read_accell( 0b11010010, 0x3f)<<8)&0xff00)+(i2c_read_accell( 0b11010010, 0x40)&0x00ff);
+
+	i2c_write_accell( accell_master_addrs,0x6b,0);
+	int x=((i2c_read_accell( accell_master_addrs, 0x3b)<<8)&0xff00)+(i2c_read_accell( accell_master_addrs, 0x3c)&0x00ff);
+	int y=((i2c_read_accell( accell_master_addrs, 0x3d)<<8)&0xff00)+(i2c_read_accell( accell_master_addrs, 0x3e)&0x00ff);			
+	int z=((i2c_read_accell( accell_master_addrs, 0x3f)<<8)&0xff00)+(i2c_read_accell( accell_master_addrs, 0x40)&0x00ff);
 		//convert from 2's complement
     if(x>0x8000)
     {
@@ -485,8 +490,74 @@ void master_input_update()
 	input.accell_m[0]=x;
 	input.accell_m[1]=y;
 	input.accell_m[2]=z;
-	*/
+	
 }
+
+///////////////////INPUT READ FUNCTIONS
+
+int switch_tension1(void) //Rewrite more efficiently? e.g. as a macro?
+{
+
+	if((PINB & (1<<1))!=0)//tension switch connected to PB1, high when connected, so when not low, switch is not connected. 
+	{
+		return(0);
+	}
+	else
+	{
+		return(1);
+	}
+}
+
+int switch_power(void) //Rewrite more efficiently? e.g. as a macro?
+{
+
+	if((PIND & (1<<3))!=0)//power switch connected to PD3, low when connected, so when not low, switch is not connected. 
+	{
+		return(0);
+	}
+	else
+	{
+		return(1);
+	}
+}
+
+int get_IR_Flex_U1513(void)
+{	
+	     //initalize adc
+		ADMUX &= (1<<REFS0); //choose reference and clear analog pins, AVcc chosen as AREF
+		ADMUX |=(1<<MUX0);//choose analog pin ADC1 connected to Flex/IR2
+		ADCSRA = (1<<ADEN) |    (1<<ADPS0); //ADEN set makes ADC enabled, ADPS0..2 selects ADC clock vs system clock, here divided by 2
+
+		//when the following code was in main, while loop started here
+		ADCSRA |= (1<<ADSC);//start adc conversion to sample sensor with led off
+		while((ADCSRA&(1<<ADSC))!=0);//busy wait for conversion to end
+
+//		printf("%d \n\r",ADCW);	
+
+	return(ADCW);
+
+}
+
+int get_IR_U5(void)
+{	
+	     //initalize adc
+		ADMUX &= (1<<REFS0); //choose reference and clear analog pins
+		ADCSRB |= (1<<ACME); 
+		ADCSRA &= ~(1<<ADEN);
+		ADMUX |=0x02;//choose analog pin ADC2 connected to IR1
+		ADCSRA = (1<<ADEN) |    (1<<ADPS0); //set up a/d
+
+
+		//when the following code was in main, while loop started here
+		ADCSRA |= (1<<ADSC);//start adc conversion to sample sensor with led off
+		while((ADCSRA&(1<<ADSC))!=0);//busy wait for conversion to end
+	//	printf("%d \n\r",ADCW);	
+
+	return(ADCW);
+
+}
+
+//////////////////OUTPUT FUNCTIONS
 
 void setLED(unsigned char red, unsigned char green, unsigned char blue)
 {

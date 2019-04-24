@@ -16,8 +16,8 @@
 
 
 #define ee_POWER_STATE 0x00 // not used to be removed
-#define accell_slave  0b11010000 //address if accel is on slave board
-#define	accell_master 0b11010010 //address if accel is on master board
+#define accell_slave  0b11010000 //IMU as slave address if accel is on slave board
+#define	accell_master 0b11010010 //IMU as address if accel is on master board
 #define atmega_slave 0xf0 // slave address, to be renamed to something more meaningful
 #define num_a2d_samples 15 //bend sensor sample size
 
@@ -37,8 +37,8 @@
 
 void setLED(unsigned char red, unsigned char green, unsigned char blue);
 int switch_power(void);
-int switch_tension1(void);
-int switch_dock(void);
+int switch_tension1(void); //rename
+int switch_dock(void); //rename
 int get_bend(void);
 void master_output_update(void);
 void master_input_update(void);
@@ -47,8 +47,8 @@ double get_accel_diff(void);
 
 struct inputs{
 	uint8_t	switch_power;
- 	uint8_t switch_tension_m;
-	uint8_t switch_tension_s;
+ 	uint8_t switch_tension_m; //rename
+	uint8_t switch_tension_s; //rename
 	uint8_t switch_dock_m;
 	uint8_t switch_dock_s;
 	int bend_s;
@@ -145,8 +145,8 @@ void init(void)
 	DDRB |= (1<<0); //vibration motor output
 
 	DDRC &= ~(1<<1); //flex sensor as input
-	DDRC &= ~(1<<2); //IR1 as input
-	DDRC &= ~(1<<3); //IR2/strain gage as input
+	DDRC &= ~(1<<2); //IR1 or flex sensor as input 
+	DDRC &= ~(1<<3); //IR2 as input
 	//initalize adc
 	ADMUX &= (1<<REFS0); //|(1<<MUX0);//choose analog pin  
 	ADCSRA = (1<<ADEN) | (1<<ADPS0); //set up a/d
@@ -685,7 +685,7 @@ char flipdir=0; //direction of flipping, reference with pcb facing and forward (
 
 //Debug program
 
-			output.led_m[2]=20;
+			output.led_m[0]=20;
 //			printf("m s %d %d %d %d %d %d\n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2], input.accell_s[0],input.accell_s[1], input.accell_s[2]);
 //			printf("s x=%d y=%d z=%d \n\r",input.accell_s[0],input.accell_s[1], input.accell_s[2]);
 //			s_angle=atan2((input.accell_s[0]),(input.accell_s[1]))*180/3.14159;
@@ -703,23 +703,24 @@ char flipdir=0; //direction of flipping, reference with pcb facing and forward (
 //			output.direction_dock_m5_m=0; // 0 positive
 //			output.speed_dock_m5_m=0;
 //			output.vibration_m=0;	
-/*		
+		
 			output.speed_bend_m3_m=0;
 			output.speed_bend_m3_s=0;	
-			if (input.switch_dock_m==1)
+			if (input.switch_tension_m==1)
 			{
-				output.led_m[0]=30;
-				output.led_m[1]=0;	
-//				output.direction_bend_m3_m=0;
-//				output.speed_bend_m3_m=40;
+//				output.led_s[0]=30;
+//				output.led_s[1]=0;	
+//				output.direction_bend_m3_s=0;
+//				output.speed_bend_m3_s=120;
+				printf("hi!");
 				}
 			else {
-				output.led_m[0]=0;
-				output.led_m[1]=0;	
-//				output.direction_bend_m3_m=1;
-//				output.speed_bend_m3_m=0;
+//				output.led_s[0]=0;
+//				output.led_s[1]=0;	
+//				output.direction_bend_m3_s=1;
+//				output.speed_bend_m3_s=0;
 				}
-*/
+
 
 
 //			printf("s bend %d\n\r",input.bend_s);
@@ -1726,7 +1727,7 @@ int get_bend(void)
 		ADCSRA |= (1<<ADSC);//start adc conversion to sample sensor with led off
 		while((ADCSRA&(1<<ADSC))!=0);//busy wait for converstion to end
 
-			printf("%d \n\r",ADCW);	
+//			printf("%d \n\r",ADCW);	
 
 		return(ADCW);
 
@@ -1791,9 +1792,9 @@ void master_input_update()
 	input.switch_dock_m=switch_dock();
 	input.switch_tension_m=switch_tension1();
 	input.bend_m=get_bend();
-//	input.IR1_m=get_IR1();
+	input.IR1_m=get_IR1();
 //	printf("%d \n\r",input.IR1_m);
-//	input.IR2_m=get_IR2();
+	input.IR2_m=get_IR2();
 //	printf("%d \n\r",input.IR2_m);
 
 		//get accel data from master side
