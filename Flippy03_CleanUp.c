@@ -219,7 +219,7 @@ ISR(TWI_vect) //SIG_2WIRE_SERIAL - 2 wire Serial interface
 {
 }	
 
-uint8_t i2c_write_accell(uint8_t accell,uint8_t address,uint8_t data)
+uint8_t i2c_write_accell(uint8_t accell,uint8_t address,uint8_t data) //??? Double check function not missing anything?
 {
 	//start twi transmission
 	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
@@ -280,7 +280,7 @@ uint8_t i2c_write_accell(uint8_t accell,uint8_t address,uint8_t data)
 	return(0);
 
 }
-uint8_t i2c_read_accell(uint8_t accell,uint8_t address)
+uint8_t i2c_read_accell(uint8_t accell,uint8_t address) //??? Double check function not missing anything?
 {
 
 	//start twi transmission
@@ -466,11 +466,11 @@ void master_input_update()
 	
 	//i2c_write_accell( 0b11010010,0x1c,0b11100000);
 
-	i2c_write_accell( accell_master_addrs,0x6b,0);
+	i2c_write_accell( accell_master_addrs,0x6b,0); //check addresses/values ???
 	int x=((i2c_read_accell( accell_master_addrs, 0x3b)<<8)&0xff00)+(i2c_read_accell( accell_master_addrs, 0x3c)&0x00ff);
 	int y=((i2c_read_accell( accell_master_addrs, 0x3d)<<8)&0xff00)+(i2c_read_accell( accell_master_addrs, 0x3e)&0x00ff);			
 	int z=((i2c_read_accell( accell_master_addrs, 0x3f)<<8)&0xff00)+(i2c_read_accell( accell_master_addrs, 0x40)&0x00ff);
-		//convert from 2's complement
+		//convert from 2's complement ???
     if(x>0x8000)
     {
         x=x ^ 0xffff;
