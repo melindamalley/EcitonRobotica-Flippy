@@ -11,12 +11,15 @@
 #include <stdio.h>
 #include <avr/interrupt.h>
 
+#define MASTER 1 // 1 for Master, 0 for Slave 
+
 #define FOSC 8000000 // oscillator clock frequency, page 166 datasheet, not sure why it's set to this value though
 #define BAUD 9600 // baud rate desired
 #define MYUBRR (((((FOSC * 10) / (16L * BAUD)) + 5) / 10)) // used to set the UBRR high and low registers, Usart Baud Rate registers, not sure about the formulat though, see datasheet page 146
 
 #define accell_slave_addrs  0b11010000
 #define	accell_master_addrs 0b11010010
+#define IMU_ADDRESS (MASTER*accell_master_addrs + ~MASTER*accell_slave_addrs) // allows for unifying master/slave code, ??BH?? try printing to ensure correct assignment
 #define atmega_slave 0xf0 // // address of the slave board processor, to be renamed to something more meaningful e.g. MCU_slave_address
 #define led_wrt_cmd 0x3A // led driver write command
 
@@ -51,9 +54,6 @@
 #define windspd 130
 #define unwindspd 220
 #define gripperspd 180
-
-
-#define MASTER 1 //choose master or slave 
 
 //Define helper functions
 void setLED(unsigned char red, unsigned char green, unsigned char blue);
@@ -123,7 +123,8 @@ int uart_putchar(char c, FILE *stream) {
     return 0; 
 }
 
-/* #define FDEV_SETUP_STREAM(put, get, rwflag) from stdio.h	
+// ??BH?? the following commented lines can be removed if code compiles/works well in older Atmel Studio projects
+/* #define FDEV_SETUP_STREAM(put, get, rwflag) from stdio.h	for use when programming in C, older Atmel Studio projects
 Initializer for a user-supplied stdio stream. 
 This macro acts similar to fdev_setup_stream(), used as the initializer of a variable of type FILE.
 */
@@ -136,7 +137,7 @@ void ioinit (void) { //usart
     UBRR0L = MYUBRR;  
     UCSR0B = (1<<TXEN0);
     
-    /* #define fdev_setup_stream(stream, put, get, rwflag) from stdio.h	
+    /* #define fdev_setup_stream(stream, put, get, rwflag) from stdio.h	for use when programming in C++, Atmel Studio 7 project
 	Setup a user-supplied buffer as an stdio stream.
 	This macro takes a user-supplied buffer stream, and sets it up as a stream that is valid for stdio operations, 
 	similar to one that has been obtained dynamically from fdevopen(). The buffer to setup must be of type FILE.
@@ -171,14 +172,14 @@ void init(void)
 
 	DDRB &= ~(1<<1); //tension switch as input PB1
 	DDRD &= ~(1<<4); //gripper/control switch as input PD4
-	DDRD &= ~(1<<3);//power switch as input PD3
+	DDRD &= ~(1<<3); //power switch as input PD3
 
 	DDRB |= (1<<6); //Hbridge 2-1 output PB6
 	DDRB |= (1<<7); //Hbridge 1-1 output PB7
 	TCCR0A |= (1<<COM0A1) | (1<<COM0B1) | (1<<WGM00); //Timer counter init (for pwm/motor control)
 	TCCR0B =0x03; //prescaler set to 0
-	OCR0B = 0x00;//start with motor off (PD5)
-	OCR0A = 0x00;//start with motor off (PD6)
+	OCR0B = 0x00; //start with motor off (PD5)
+	OCR0A = 0x00; //start with motor off (PD6)
 	DDRB |= (1<<0); //vibration motor output PB0
 
 	DDRC &= ~(1<<1); //IR2 or flex sensor as input (PC1)
@@ -188,11 +189,12 @@ void init(void)
 	ADMUX = (1<<REFS0); //|(1<<MUX0);//choose analog pin  
 	ADCSRA = (1<<ADEN) | (1<<ADPS0); //set up a/d
 
-			//enable power switch interrupt
-	DDRD &= ~(1<<2);		// Set PD2 as input (Using for interupt INT0) 
-	PORTD |= 1<<2;		// Enable PD2 pull-up resistor / Check datasheet ???
-	EIMSK = 1<<1;					// Enable INT0
-	EICRA = 1<<ISC01 | 1<<ISC00;	// Trigger INT0 on rising edge 
+	// ??BH?? INT0 ISR does not exist, i.e. the interrupt ISR executes no code
+	//enable interrupt INT0/PCINT18/PD2, used by U1/IMU 
+	DDRD &= ~(1<<2);		// DDRxn reset, PD2 configured as input
+	PORTD |= 1<<2;		// PORTxn set when pin configured as input, PD2 pull-up resistor activated
+	EIMSK = 1<<1;					// External Interrupt Mask Register (EIMSK) bit 1 set, INT0 enabled
+	EICRA = 1<<ISC01 | 1<<ISC00;	// External Interrupt Control Register A (EICRA), ISCxx Interrupt Sense Control bits, INT0 set to trigger on rising edge 
 
   	TWBR=0x04; //twi bit rate set 
 	
@@ -215,71 +217,88 @@ void init(void)
 	toggle_wakeup=0;
 
 }
-ISR(TWI_vect) //SIG_2WIRE_SERIAL - 2 wire Serial interface
+
+// AVR TWI is byte-oriented and interrupt based
+// 2 wire Serial interface ISR
+ISR(TWI_vect) 
 {
+	cli();
+	printf("TWI ISR reached ...\n\r");
+	
+	TWCR &= ~(1<<TWIE);	// Two Wire Control Register (TWCR), 
+	// TWEN bit = 1 to enable the 2-wire serial interface
+	// TWINT bit = 1 to clear the TWINT flag
+	TWCR = (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
 }	
 
+// ??BH?? function to be renamed in future revisions, i.e. i2c_imu_write 
 uint8_t i2c_write_accell(uint8_t accell,uint8_t address,uint8_t data) //??? Double check function not missing anything?
 {
-	//start twi transmission
-	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
+	// start TWI transmission
+	// Two Wire Control Register (TWCR)
+	// TWEN bit = 1 to enable the 2-wire serial interface
+	// TWSTA bit = 1 to transmit a START condition
+	// TWINT bit = 1 to clear the TWINT flag
+	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN); 
 
-	//wait for TWCR flag to set indication start is transmitted
+	// wait for TWINT bit in TWCR reg set by the TWI control unit
+	// this indicates START condition transmission is finished
+	// user application code then checks TWSR reg if START condition transmission successful
 	while(!(TWCR &(1<<TWINT)));
 
-	//check to see if start is an error or not
+	// user application code checks TWSR reg if START condition transmission successful, see datasheet page 183
 	if((TWSR & 0xF8) != 0x08)
-	printf("twi error\n\r");
+	printf("TWI START condition transmission error\n\r");
 
-	//Load write address of slave in to TWDR, 
+	// Load write address of slave in to TWDR, 
 	
-	//uint8_t SLA_W=0b11010000;
+	// uint8_t SLA_W=0b11010000;
 	uint8_t SLA_W=accell;
 	TWDR=SLA_W;
 
-	//start transmission
+	// clear TWINT bit in TWCR to start transmission of address
 	TWCR=(1<<TWINT)|(1<<TWEN);
 
-	//wait for TWINT flag to se, indicating transmission and ack/nack receive
+	// wait for TWINT flag to raise, indicating transmission and ack/nack receive
 	while(!(TWCR & (1<<TWINT)));
 
-	//check to see if ack received
+	// check TWSR reg to see if ack received
 	if((TWSR & 0xF8) != 0x18)	
 	printf("first ack problem 0x%x \n\r",(TWSR & 0xF8));
-//	printf("ack recieved OK 0x%x \n\r",(TWSR & 0xF8));
+	// printf("ack recieved OK 0x%x \n\r",(TWSR & 0xF8));
 
 
-	//send data, in this case an address
+	// send data, in this case an address
 	TWDR=address;//0x6b;// accell x value msb's
 	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
 
 	while(!(TWCR&(1<<TWINT)));//wait for data to tx
 
-	//check for data ack	
+	// check for data ack	
 	if((TWSR & 0xF8) != 0x28)	
 	printf("second ack problem is 0x%x\n\r",(TWSR & 0xF8));
-//	printf("second ack received OK is 0x%x\n\r",(TWSR & 0xF8));
+	// printf("second ack received OK is 0x%x\n\r",(TWSR & 0xF8));
 
-
-/////
-
-	//send data, in this case an address
+	//send data
 	TWDR=data;//0x00;// accell x value msb's
 	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
 
 	while(!(TWCR&(1<<TWINT)));//wait for data to tx
 
-	//check for data ack	
+	// check for data ack	
 	if((TWSR & 0xF8) != 0x28)	
 	printf("third ack problem is 0x%x\n\r",(TWSR & 0xF8));
-//	printf("third ack received OK is 0x%x\n\r",(TWSR & 0xF8));
+	// printf("third ack received OK is 0x%x\n\r",(TWSR & 0xF8));
 
-	//send stop bit
+	// start transmission of STOP condition 
 	TWCR = (1<<TWINT)|(1<<TWSTO);
 
 	return(0);
 
 }
+
+
+// ??BH?? function to be renamed in future revisions, i.e. i2c_imu_read 
 uint8_t i2c_read_accell(uint8_t accell,uint8_t address) //??? Double check function not missing anything?
 {
 
@@ -370,7 +389,7 @@ uint8_t i2c_read_accell(uint8_t accell,uint8_t address) //??? Double check funct
 
 }
 
-
+// ??BH?? insert switch-case structure for debug vs normal operation code
 int main(void)
 {
 	init();	
@@ -466,11 +485,11 @@ void master_input_update()
 	
 	//i2c_write_accell( 0b11010010,0x1c,0b11100000);
 
-	i2c_write_accell( accell_master_addrs,0x6b,0); //check addresses/values ???
-	int x=((i2c_read_accell( accell_master_addrs, 0x3b)<<8)&0xff00)+(i2c_read_accell( accell_master_addrs, 0x3c)&0x00ff);
-	int y=((i2c_read_accell( accell_master_addrs, 0x3d)<<8)&0xff00)+(i2c_read_accell( accell_master_addrs, 0x3e)&0x00ff);			
-	int z=((i2c_read_accell( accell_master_addrs, 0x3f)<<8)&0xff00)+(i2c_read_accell( accell_master_addrs, 0x40)&0x00ff);
-		//convert from 2's complement ???
+	i2c_write_accell( IMU_ADDRESS,0x6b,0); //check addresses/values ???
+	int x=((i2c_read_accell( IMU_ADDRESS, 0x3b)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, 0x3c)&0x00ff);
+	int y=((i2c_read_accell( IMU_ADDRESS, 0x3d)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, 0x3e)&0x00ff);			
+	int z=((i2c_read_accell( IMU_ADDRESS, 0x3f)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, 0x40)&0x00ff);
+	//convert from 2's complement ???
     if(x>0x8000)
     {
         x=x ^ 0xffff;
