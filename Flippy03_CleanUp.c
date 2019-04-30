@@ -17,11 +17,21 @@
 #define BAUD 9600 // baud rate desired
 #define MYUBRR (((((FOSC * 10) / (16L * BAUD)) + 5) / 10)) // used to set the UBRR high and low registers, Usart Baud Rate registers, not sure about the formulat though, see datasheet page 146
 
-#define accell_slave_addrs  0b11010000
-#define	accell_master_addrs 0b11010010
+#define accell_slave  0b11010000 // IMU on slave board,  [7bit i2c address from chip datasheet,0] = 0xd0
+#define	accell_master 0b11010010 // IMU on master board, [7bit i2c address from chip datasheet,0] = 0xd2
 #define IMU_ADDRESS (MASTER*accell_master_addrs + ~MASTER*accell_slave_addrs) // allows for unifying master/slave code, ??BH?? try printing to ensure correct assignment
 #define atmega_slave 0xf0 // // address of the slave board processor, to be renamed to something more meaningful e.g. MCU_slave_address
 #define led_wrt_cmd 0x3A // led driver write command
+
+// IMU chip registers, 0x3B to 0x40 for old chip MPU-9250, 0x2D to 0x32 for new chip ICM-20948
+#define ACCEL_XOUT_H	0x2D 	// 0x3B
+#define ACCEL_XOUT_L	0x2E	// 0x3C 
+
+#define ACCEL_YOUT_H	0x2F	// 0x3D
+#define ACCEL_YOUT_L	0x30    // 0x3E
+
+#define ACCEL_ZOUT_H	0x31	// 0x3F
+#define ACCEL_ZOUT_L	0x32	// 0x40
 
 //////////////////////////////////////
 //
@@ -248,7 +258,10 @@ uint8_t i2c_write_accell(uint8_t accell,uint8_t address,uint8_t data) //??? Doub
 
 	// user application code checks TWSR reg if START condition transmission successful, see datasheet page 183
 	if((TWSR & 0xF8) != 0x08)
-	printf("TWI START condition transmission error\n\r");
+	{
+		printf("TWI START condition transmission error\n\r");
+		// ToDo: add error handling code
+	}
 
 	// Load write address of slave in to TWDR, 
 	
@@ -290,7 +303,7 @@ uint8_t i2c_write_accell(uint8_t accell,uint8_t address,uint8_t data) //??? Doub
 	printf("third ack problem is 0x%x\n\r",(TWSR & 0xF8));
 	// printf("third ack received OK is 0x%x\n\r",(TWSR & 0xF8));
 
-	// start transmission of STOP condition 
+	// transmit STOP condition 
 	TWCR = (1<<TWINT)|(1<<TWSTO);
 
 	return(0);
@@ -380,7 +393,8 @@ uint8_t i2c_read_accell(uint8_t accell,uint8_t address) //??? Double check funct
 	if((TWSR & 0xF8) != 0x58)	
 	printf("third ack problem 0x%x \n\r",(TWSR & 0xF8));
 //	printf("third ack recieved OK 0x%x \n\r",(TWSR & 0xF8));
-	
+
+	// transmit STOP condition 
 	TWCR = (1<<TWINT)|(1<<TWSTO);
 //wait for TWINT flag to se, indicating transmission and ack/nack receive
 	//while(!(TWCR & (1<<TWINT)));
@@ -485,27 +499,36 @@ void master_input_update()
 	
 	//i2c_write_accell( 0b11010010,0x1c,0b11100000);
 
-	i2c_write_accell( IMU_ADDRESS,0x6b,0); //check addresses/values ???
-	int x=((i2c_read_accell( IMU_ADDRESS, 0x3b)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, 0x3c)&0x00ff);
-	int y=((i2c_read_accell( IMU_ADDRESS, 0x3d)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, 0x3e)&0x00ff);			
-	int z=((i2c_read_accell( IMU_ADDRESS, 0x3f)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, 0x40)&0x00ff);
+	// Measurement data is stored in two’s complement and Little Endian format. 
+	// Measurement range of each axis is from -32752 ~ 32752 decimal in 16-bit output.
+	// 0x8010 represents -32752, 0x7ff0 is 32752
+	i2c_write_accell(IMU_ADDRESS,0x6b,0); //check addresses/values ??? // ??BH?? not sure about this 0x6b address, could not find it in old/new chip datasheet
+	int x=((i2c_read_accell( IMU_ADDRESS, ACCEL_XOUT_H)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, ACCEL_XOUT_L)&0x00ff);
+	int y=((i2c_read_accell( IMU_ADDRESS, ACCEL_YOUT_H)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, ACCEL_YOUT_L)&0x00ff);			
+	int z=((i2c_read_accell( IMU_ADDRESS, ACCEL_ZOUT_H)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, ACCEL_ZOUT_L)&0x00ff);
+
 	//convert from 2's complement ???
+	// convert two's complement for negative values, 0x8010 = -32752 is the lowest 
     if(x>0x8000)
     {
         x=x ^ 0xffff;
-        x=-x-1;
+        //x=-x-1; ??BH??
+        x=x+1;
     }
 	if(y>0x8000)
     {
         y=y ^ 0xffff;
-        y=-y-1;
+        //y=-y-1; ??BH??
+        y=y+1;
     }
 	if(z>0x8000)
     {
         z=z ^ 0xffff;
-        z=-z-1;
+        //z=-z-1; ??BH??
+        z=z+1;
     }
 
+    // update values input to MCU from IMU
 	input.accell_m[0]=x;
 	input.accell_m[1]=y;
 	input.accell_m[2]=z;
