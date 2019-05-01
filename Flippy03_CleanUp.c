@@ -15,8 +15,24 @@
 #define BAUD 9600 // baud rate desired
 #define MYUBRR (((((FOSC * 10) / (16L * BAUD)) + 5) / 10)) // used to set the UBRR high and low registers, Usart Baud Rate registers, not sure about the formulat though, see datasheet page 146
 
+
+//IMU registers
 #define accell_slave_addrs  0b11010000
 #define	accell_master_addrs 0b11010010
+#define MPU9250_ACCEL_XOUT_H =  0x3B
+#define MPU9250_ACCEL_XOUT_L =  0x3C
+#define MPU9250_ACCEL_YOUT_H =  0x3D
+#define MPU9250_ACCEL_YOUT_L =  0x3E
+#define MPU9250_ACCEL_ZOUT_H =  0x3F
+#define MPU9250_ACCEL_ZOUT_L =  0x40
+
+#define ICM20948_ACCEL_XOUT_H =  0x2D
+#define ICM20948_ACCEL_XOUT_L =  0x2E
+#define ICM20948_ACCEL_YOUT_H =  0x2F
+#define ICM20948_ACCEL_YOUT_L =  0x30
+#define ICM20948_ACCEL_ZOUT_H =  0x31
+#define ICM20948_ACCEL_ZOUT_L =  0x32
+
 #define atmega_slave 0xf0 // // address of the slave board processor, to be renamed to something more meaningful e.g. MCU_slave_address
 #define led_wrt_cmd 0x3A // led driver write command
 
