@@ -19,19 +19,19 @@
 
 ///////// IMU information
 
-#define accell_slave  0b11010000 // IMU on slave board,  [7bit i2c address from chip datasheet,0] = 0xd0
-#define	accell_master 0b11010010 // IMU on master board, [7bit i2c address from chip datasheet,0] = 0xd2
-#define IMU_ADDRESS (MASTER*accell_master_addrs + ~MASTER*accell_slave_addrs) // allows for unifying master/slave code, ??BH?? try printing to ensure correct assignment
+#define accell_slave_addrs  0b11010000 // IMU on slave board,  [7bit i2c address from chip datasheet,0] = 0xd0
+#define	accell_master_addrs 0b11010010 // IMU on master board, [7bit i2c address from chip datasheet,0] = 0xd2
+#define IMU_ADDRESS (accell_slave_addrs | (MASTER<<1)) // allows for unifying master/slave code, ??BH?? try printing to ensure correct assignment
 
-// IMU chip registers, 0x3B to 0x40 for old chip MPU-9250, 0x2D to 0x32 for new chip ICM-20948
-#define ACCEL_XOUT_H	0x2D 	// 0x3B
-#define ACCEL_XOUT_L	0x2E	// 0x3C 
+// IMU chip registers, 0x3B to 0x40 for MPU-9250, 0x2D to 0x32 for replaced chip (first order) ICM-20948
+#define ACCEL_XOUT_H	0x3B //0x2D //for ICM-20948
+#define ACCEL_XOUT_L	0x3C //0x2E	 //for ICM-20948
 
-#define ACCEL_YOUT_H	0x2F	// 0x3D
-#define ACCEL_YOUT_L	0x30    // 0x3E
+#define ACCEL_YOUT_H	0x3D	// 0x2F //for ICM-20948
+#define ACCEL_YOUT_L	0x3E    // 0x30 //for ICM-20948
 
-#define ACCEL_ZOUT_H	0x31	// 0x3F
-#define ACCEL_ZOUT_L	0x32	// 0x40
+#define ACCEL_ZOUT_H	0x3F	// 0x31 //for ICM-20948
+#define ACCEL_ZOUT_L	0x40	// 0x32 //ICM-20948
 
 ///////////
 
@@ -432,16 +432,17 @@ int main(void)
 //			output.direction_bend_m3_m=1; // 0 positive
 //			output.speed_bend_m3_m=225;
 //			output.vibration_m=1;
-//			printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
+			printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
+//			printf("%#08X \n\r", IMU_ADDRESS);
 //			printf("IR %d %d \n\r", input.IR1_m, input.IR2_m);
 //			input.IR2_m=get_IR_U5();
-			input.IR1_m=get_IR_Flex_U1513();
-			printf("IR %d \n\r", input.IR1_m); //for bend sensor reading only - note change function name to reflect.
+//			input.IR1_m=get_IR_Flex_U1513();
+//			printf("IR %d \n\r", input.IR1_m); //for bend sensor reading only - note change function name to reflect.
 						
 			//you can adjust this delay.. eventually if too small it may cause problems, but you can fix this by changing it back
 			_delay_ms(20);
-//			master_output_update();
-//			master_input_update();
+			master_output_update();
+			master_input_update();
 	}
 
 }
@@ -507,6 +508,10 @@ void master_input_update()
 	// Measurement data is stored in two’s complement and Little Endian format. 
 	// Measurement range of each axis is from -32752 ~ 32752 decimal in 16-bit output.
 	// 0x8010 represents -32752, 0x7ff0 is 32752
+
+	/* 0x6b address see MPU9150 (really old accel) something to do with setting the configuration. Not sure if this is the right address. 
+	*/
+
 	i2c_write_accell(IMU_ADDRESS,0x6b,0); //check addresses/values ??? // ??BH?? not sure about this 0x6b address, could not find it in old/new chip datasheet
 	int x=((i2c_read_accell( IMU_ADDRESS, ACCEL_XOUT_H)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, ACCEL_XOUT_L)&0x00ff);
 	int y=((i2c_read_accell( IMU_ADDRESS, ACCEL_YOUT_H)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, ACCEL_YOUT_L)&0x00ff);			
