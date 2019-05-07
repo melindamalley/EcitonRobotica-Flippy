@@ -62,9 +62,17 @@
 #define led_port PORTD
 #define led_pin (1 << 7)
 
-//Switch S4
+//Switch S4 PD4
 #define S4_port PIND //(((PIND & (1<<4)) >> 4))
 #define S4_pin 4
+
+//Switch "Power" PD3
+#define S3_port PIND 
+#define S3_pin 3
+
+//Switch "Tension"
+#define STension_port PINB 
+#define STension_pin 1
 
 ///////////////
 
@@ -431,7 +439,9 @@ int main(void)
 			
 		//	printf("We can print without i2c \n\r");
 
-			printf("%d \n\r", input.switch_S4_m);
+//			printf("%d \n\r", input.switch_S4_m);
+			printf("%d \n\r", input.switch_tension_m);
+//			printf("%d \n\r", ((PIND & (1<<3)) >> 3));
 //			output.speed_dock_m5_m=225;
 //			output.direction_dock_m5_m=0;
 //			output.direction_bend_m3_m=1; // 0 positive
@@ -499,7 +509,7 @@ void master_output_update() //motor updates
 void master_input_update()  
 {
 	input.switch_S4_m=get_switch_input(S4_port, S4_pin); //((PIND & (1<<4)) >> 4);
-//	input.switch_tension_m=switch_tension1();
+	input.switch_tension_m=get_switch_input(STension_port, STension_pin);
 //	input.bend_m=get_bend();
 //	input.IR1_m=get_IR_Flex_U1513();
 //	printf("%d \n\r",input.IR1_m);
@@ -554,35 +564,7 @@ void master_input_update()
 
 ///////////////////INPUT READ FUNCTIONS
 
-int switch_tension1(void) //Rewrite more efficiently? e.g. as a macro?
-{
-
-	if((PINB & (1<<1))!=0)//tension switch connected to PB1, high when connected, so when not low, switch is not connected. 
-	{
-		return(0);
-	}
-	else
-	{
-		return(1);
-	}
-}
-
-int switch_S4(void) {
-	return (((PIND & (1<<4)) >> 4));
-}
-	 //consider renaming (control switch)
-/*
-	if((PIND & (1<<4))!=0)//switch connected to PD4, low when connected, so when not low, switch is not connected.
-	{
-		return(0);
-	}
-	else
-	{
-		return(1);
-	}
-
-*/
-
+//NOTE THAT MACRO FOR SWITCH INPUT NOT CURRENTLY WORKING FOR POWER SWITCH????
 
 int switch_power(void) //Rewrite more efficiently? e.g. as a macro?
 {
