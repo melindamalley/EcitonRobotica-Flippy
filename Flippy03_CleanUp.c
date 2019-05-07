@@ -19,19 +19,19 @@
 
 ///////// IMU information
 
-#define accell_slave_addrs  0b11010000 // IMU on slave board,  [7bit i2c address from chip datasheet,0] = 0xd0
-#define	accell_master_addrs 0b11010010 // IMU on master board, [7bit i2c address from chip datasheet,0] = 0xd2
+#define accell_slave_addrs  0b11010000 // IMU address on slave board,  [7bit i2c embedded chip address from IMU datasheet,0] = 0xd0
+#define	accell_master_addrs 0b11010010 // IMU address on master board, [7bit i2c embedded chip address from IMU datasheet,0] = 0xd2
 #define IMU_ADDRESS (accell_slave_addrs | (MASTER<<1)) // allows for unifying master/slave code, ??BH?? try printing to ensure correct assignment
 
-// IMU chip registers, 0x3B to 0x40 for MPU-9250, 0x2D to 0x32 for replaced chip (first order) ICM-20948
-#define ACCEL_XOUT_H	0x3B //0x2D //for ICM-20948
-#define ACCEL_XOUT_L	0x3C //0x2E	 //for ICM-20948
+// IMU chip registers, 0x3B to 0x40 for MPU-9250 (Mar 2019 order), 0x2D to 0x32 for ICM-20948 (Dec 2018 order)
+#define ACCEL_XOUT_H	0x3B 	// 0x2D //for ICM-20948
+#define ACCEL_XOUT_L	0x3C 	// 0x2E //for ICM-20948
 
 #define ACCEL_YOUT_H	0x3D	// 0x2F //for ICM-20948
 #define ACCEL_YOUT_L	0x3E    // 0x30 //for ICM-20948
 
 #define ACCEL_ZOUT_H	0x3F	// 0x31 //for ICM-20948
-#define ACCEL_ZOUT_L	0x40	// 0x32 //ICM-20948
+#define ACCEL_ZOUT_L	0x40	// 0x32 //for ICM-20948
 
 ///////////
 
@@ -86,8 +86,7 @@ double get_accel_diff(void);
 void init(void);
 int i2c_send(void);
 
-//Define Robot Inputs/Sensors
-
+// Robot Inputs/Sensors
 struct inputs{
 	uint8_t	switch_power;
  	uint8_t switch_tension_m;
@@ -103,8 +102,7 @@ struct inputs{
  
 };
 
-//Define Robot Outputs
-
+// Robot Outputs
 struct outputs{
 	uint8_t speed_bend_m3_m;
 	uint8_t speed_bend_m3_s;
@@ -160,12 +158,10 @@ void ioinit (void) { //usart
     */
     fdev_setup_stream(&mystdout, uart_putchar, NULL, _FDEV_SETUP_WRITE);
     stdout = &mystdout;
-
 }
 
 void init(void)
 {
-
 	// all ports as input, pull-up resistors deactivated, all pins on Hi-Z
 	DDRB=0;
 	PORTB=0;
@@ -174,7 +170,7 @@ void init(void)
 	DDRD=0;
 	PORTD=0;
 
-	ioinit(); // Usart init
+	ioinit(); // USART init
 
 	sleep_mode=0;
 	//power on 
@@ -234,7 +230,7 @@ void init(void)
 }
 
 // AVR TWI is byte-oriented and interrupt based
-// 2 wire Serial interface ISR
+// ISR for the 2 wire Serial interface
 ISR(TWI_vect) 
 {
 	cli();
@@ -247,7 +243,7 @@ ISR(TWI_vect)
 }	
 
 // ??BH?? function to be renamed in future revisions, i.e. i2c_imu_write 
-uint8_t i2c_write_accell(uint8_t accell,uint8_t address,uint8_t data) //??? Double check function not missing anything?
+uint8_t i2c_write_accell(uint8_t chip_address,uint8_t reg_address,uint8_t data) //??? Double check function not missing anything?
 {
 	// start TWI transmission
 	// Two Wire Control Register (TWCR)
@@ -271,7 +267,7 @@ uint8_t i2c_write_accell(uint8_t accell,uint8_t address,uint8_t data) //??? Doub
 	// Load write address of slave in to TWDR, 
 	
 	// uint8_t SLA_W=0b11010000;
-	uint8_t SLA_W=accell;
+	uint8_t SLA_W=chip_address;
 	TWDR=SLA_W;
 
 	// clear TWINT bit in TWCR to start transmission of address
@@ -287,7 +283,7 @@ uint8_t i2c_write_accell(uint8_t accell,uint8_t address,uint8_t data) //??? Doub
 
 
 	// send data, in this case an address
-	TWDR=address;//0x6b;// accell x value msb's
+	TWDR=reg_address;//0x6b;// accell x value msb's
 	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
 
 	while(!(TWCR&(1<<TWINT)));//wait for data to tx
@@ -317,23 +313,33 @@ uint8_t i2c_write_accell(uint8_t accell,uint8_t address,uint8_t data) //??? Doub
 
 
 // ??BH?? function to be renamed in future revisions, i.e. i2c_imu_read 
-uint8_t i2c_read_accell(uint8_t accell,uint8_t address) //??? Double check function not missing anything?
+uint8_t i2c_read_accell(uint8_t chip_address, uint8_t reg_address) //??? Double check function not missing anything?
 {
+	
+	/* // ??BH?? I think this can be omitted
+	// start TWI transmission
+	// Two Wire Control Register (TWCR)
+	// TWEN bit = 1 to enable the 2-wire serial interface
+	// TWSTA bit = 1 to transmit a START condition
+	// TWINT bit = 1 to clear the TWINT flag
+	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN); 
 
-	//start twi transmission
-	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
-
-	//wait for TWCR flag to set indication start is transmitted
+	// wait for TWINT bit in TWCR reg set by the TWI control unit
+	// this indicates START condition transmission is finished
+	// user application code then checks TWSR reg if START condition transmission successful
 	while(!(TWCR &(1<<TWINT)));
 
-	//check to see if start is an error or not
+	// user application code checks TWSR reg if START condition transmission successful, see datasheet page 183
 	if((TWSR & 0xF8) != 0x08)
-	printf("twi error\n\r");
+	{
+		printf("TWI START condition transmission error\n\r");
+		// ToDo: add error handling code
+	}
 
-	//Load write addres of slave in to TWDR, 
-	//uint8_t	SLA_W=0b11010000;
-	uint8_t	SLA_W=accell;
-	TWDR=SLA_W;
+	// load SLA+R/W into TWDR, 7bit slave addres + 1bit (0 for write/1 for read by the master chip)  
+	// uint8_t	SLA_W=0b11010000;
+	uint8_t	SLA_W = chip_address;
+	TWDR = SLA_W;
 
 	//start transmission
 	TWCR=(1<<TWINT)|(1<<TWEN);
@@ -347,7 +353,7 @@ uint8_t i2c_read_accell(uint8_t accell,uint8_t address) //??? Double check funct
 //	printf("ack recieved OK 0x%x \n\r",(TWSR & 0xF8));
 
 	//send data, in this case an address
-	TWDR=address;// accell x value msb's
+	TWDR = reg_address;// accell x value msb's
 	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
 
 	while(!(TWCR&(1<<TWINT)));//wait for data to tx
@@ -359,6 +365,8 @@ uint8_t i2c_read_accell(uint8_t accell,uint8_t address) //??? Double check funct
 
 	//send stop bit
 	TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWSTO);
+	//
+	// ??BH?? I think this can bo omitted */
 
 
 	////master receiver mode
@@ -374,7 +382,7 @@ uint8_t i2c_read_accell(uint8_t accell,uint8_t address) //??? Double check funct
 	printf("start condition error 0x%x\n\r",(TWSR & 0xF8));
 
 	//Load read addres of slave in to TWDR, 
-	 SLA_W=accell | 1;//	 SLA_W=0b11010001;
+	 SLA_W=chip_address | 1;//	 SLA_W=0b11010001;
 	TWDR=SLA_W;
 
 	//start transmission
