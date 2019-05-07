@@ -33,7 +33,7 @@
 #define gripperspd 180
 
 
-#define MASTER 1 //choose master or slave 
+#define MASTER 0 //choose master or slave 
 
 void setLED(unsigned char red, unsigned char green, unsigned char blue);
 int switch_power(void);
@@ -703,7 +703,7 @@ char flipdir=0; //direction of flipping, reference with pcb facing and forward (
 //			output.direction_dock_m5_m=0; // 0 positive
 //			output.speed_dock_m5_m=0;
 //			output.vibration_m=0;	
-		
+/*		
 			output.speed_bend_m3_m=0;
 			output.speed_bend_m3_s=0;	
 			if (input.switch_tension_m==1)
@@ -720,7 +720,7 @@ char flipdir=0; //direction of flipping, reference with pcb facing and forward (
 //				output.direction_bend_m3_s=1;
 //				output.speed_bend_m3_s=0;
 				}
-
+*/
 
 
 //			printf("s bend %d\n\r",input.bend_s);
@@ -839,7 +839,7 @@ else{
 				output.speed_bend_m3_s=100;
 			}
 		}
-
+*/
 //Flipping Programs
 
 	switch(state){
@@ -1330,7 +1330,7 @@ else{
 
 	}
 
-*/
+
 			///////////////////////
 			//user code ends here
 			///////////////////////

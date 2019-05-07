@@ -19,19 +19,19 @@
 
 ///////// IMU information
 
-#define accell_slave_addrs  0b11010000 // IMU address on slave board,  [7bit i2c embedded chip address from IMU datasheet,0] = 0xd0
-#define	accell_master_addrs 0b11010010 // IMU address on master board, [7bit i2c embedded chip address from IMU datasheet,0] = 0xd2
+#define accell_slave_addrs  0b11010000 // IMU on slave board,  [7bit i2c address from chip datasheet,0] = 0xd0
+#define	accell_master_addrs 0b11010010 // IMU on master board, [7bit i2c address from chip datasheet,0] = 0xd2
 #define IMU_ADDRESS (accell_slave_addrs | (MASTER<<1)) // allows for unifying master/slave code, ??BH?? try printing to ensure correct assignment
 
-// IMU chip registers, 0x3B to 0x40 for MPU-9250 (Mar 2019 order), 0x2D to 0x32 for ICM-20948 (Dec 2018 order)
-#define ACCEL_XOUT_H	0x3B 	// 0x2D //for ICM-20948
-#define ACCEL_XOUT_L	0x3C 	// 0x2E //for ICM-20948
+// IMU chip registers, 0x3B to 0x40 for MPU-9250, 0x2D to 0x32 for replaced chip (first order) ICM-20948
+#define ACCEL_XOUT_H	0x3B //0x2D //for ICM-20948
+#define ACCEL_XOUT_L	0x3C //0x2E	 //for ICM-20948
 
 #define ACCEL_YOUT_H	0x3D	// 0x2F //for ICM-20948
 #define ACCEL_YOUT_L	0x3E    // 0x30 //for ICM-20948
 
 #define ACCEL_ZOUT_H	0x3F	// 0x31 //for ICM-20948
-#define ACCEL_ZOUT_L	0x40	// 0x32 //for ICM-20948
+#define ACCEL_ZOUT_L	0x40	// 0x32 //ICM-20948
 
 ///////////
 
@@ -47,6 +47,8 @@
 #define clear(port,pin) (port &= (~pin)) // clear port pin
 //////////////////////////////////////
 
+#define get_switch_input(port, pin) ((port & (1<<pin)) >> pin) //bit shift function to get input from switches
+
 ////////////////
 //SETUP AND DEFINE PINS
 
@@ -60,7 +62,9 @@
 #define led_port PORTD
 #define led_pin (1 << 7)
 
-//
+//Switch S4
+#define S4_port PIND //(((PIND & (1<<4)) >> 4))
+#define S4_pin 4
 
 ///////////////
 
@@ -74,7 +78,7 @@
 void setLED(unsigned char red, unsigned char green, unsigned char blue);
 int switch_power(void);
 int switch_tension1(void);
-int switch_dock(void);
+int switch_S4(void);
 int get_bend(void);
 int get_IR_Flex_U1513(void);
 int get_IR_U5(void);
@@ -86,13 +90,14 @@ double get_accel_diff(void);
 void init(void);
 int i2c_send(void);
 
-// Robot Inputs/Sensors
+//Define Robot Inputs/Sensors
+
 struct inputs{
 	uint8_t	switch_power;
  	uint8_t switch_tension_m;
 	uint8_t switch_tension_s;
-	uint8_t switch_dock_m;
-	uint8_t switch_dock_s;
+	uint8_t switch_S4_m;
+	uint8_t switch_S4_s;
 	int bend_s;
 	int bend_m;
 	int IR1_m; 
@@ -102,7 +107,8 @@ struct inputs{
  
 };
 
-// Robot Outputs
+//Define Robot Outputs
+
 struct outputs{
 	uint8_t speed_bend_m3_m;
 	uint8_t speed_bend_m3_s;
@@ -158,10 +164,12 @@ void ioinit (void) { //usart
     */
     fdev_setup_stream(&mystdout, uart_putchar, NULL, _FDEV_SETUP_WRITE);
     stdout = &mystdout;
+
 }
 
 void init(void)
 {
+
 	// all ports as input, pull-up resistors deactivated, all pins on Hi-Z
 	DDRB=0;
 	PORTB=0;
@@ -170,7 +178,7 @@ void init(void)
 	DDRD=0;
 	PORTD=0;
 
-	ioinit(); // USART init
+	ioinit(); // Usart init
 
 	sleep_mode=0;
 	//power on 
@@ -230,7 +238,7 @@ void init(void)
 }
 
 // AVR TWI is byte-oriented and interrupt based
-// ISR for the 2 wire Serial interface
+// 2 wire Serial interface ISR
 ISR(TWI_vect) 
 {
 	cli();
@@ -243,7 +251,7 @@ ISR(TWI_vect)
 }	
 
 // ??BH?? function to be renamed in future revisions, i.e. i2c_imu_write 
-uint8_t i2c_write_accell(uint8_t chip_address,uint8_t reg_address,uint8_t data) //??? Double check function not missing anything?
+uint8_t i2c_write_accell(uint8_t accell,uint8_t address,uint8_t data) //??? Double check function not missing anything?
 {
 	// start TWI transmission
 	// Two Wire Control Register (TWCR)
@@ -267,7 +275,7 @@ uint8_t i2c_write_accell(uint8_t chip_address,uint8_t reg_address,uint8_t data) 
 	// Load write address of slave in to TWDR, 
 	
 	// uint8_t SLA_W=0b11010000;
-	uint8_t SLA_W=chip_address;
+	uint8_t SLA_W=accell;
 	TWDR=SLA_W;
 
 	// clear TWINT bit in TWCR to start transmission of address
@@ -283,7 +291,7 @@ uint8_t i2c_write_accell(uint8_t chip_address,uint8_t reg_address,uint8_t data) 
 
 
 	// send data, in this case an address
-	TWDR=reg_address;//0x6b;// accell x value msb's
+	TWDR=address;//0x6b;// accell x value msb's
 	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
 
 	while(!(TWCR&(1<<TWINT)));//wait for data to tx
@@ -313,33 +321,23 @@ uint8_t i2c_write_accell(uint8_t chip_address,uint8_t reg_address,uint8_t data) 
 
 
 // ??BH?? function to be renamed in future revisions, i.e. i2c_imu_read 
-uint8_t i2c_read_accell(uint8_t chip_address, uint8_t reg_address) //??? Double check function not missing anything?
+uint8_t i2c_read_accell(uint8_t accell,uint8_t address) //??? Double check function not missing anything?
 {
-	
-	/* // ??BH?? I think this can be omitted
-	// start TWI transmission
-	// Two Wire Control Register (TWCR)
-	// TWEN bit = 1 to enable the 2-wire serial interface
-	// TWSTA bit = 1 to transmit a START condition
-	// TWINT bit = 1 to clear the TWINT flag
-	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN); 
 
-	// wait for TWINT bit in TWCR reg set by the TWI control unit
-	// this indicates START condition transmission is finished
-	// user application code then checks TWSR reg if START condition transmission successful
+	//start twi transmission
+	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
+
+	//wait for TWCR flag to set indication start is transmitted
 	while(!(TWCR &(1<<TWINT)));
 
-	// user application code checks TWSR reg if START condition transmission successful, see datasheet page 183
+	//check to see if start is an error or not
 	if((TWSR & 0xF8) != 0x08)
-	{
-		printf("TWI START condition transmission error\n\r");
-		// ToDo: add error handling code
-	}
+	printf("twi error\n\r");
 
-	// load SLA+R/W into TWDR, 7bit slave addres + 1bit (0 for write/1 for read by the master chip)  
-	// uint8_t	SLA_W=0b11010000;
-	uint8_t	SLA_W = chip_address;
-	TWDR = SLA_W;
+	//Load write addres of slave in to TWDR, 
+	//uint8_t	SLA_W=0b11010000;
+	uint8_t	SLA_W=accell;
+	TWDR=SLA_W;
 
 	//start transmission
 	TWCR=(1<<TWINT)|(1<<TWEN);
@@ -353,7 +351,7 @@ uint8_t i2c_read_accell(uint8_t chip_address, uint8_t reg_address) //??? Double 
 //	printf("ack recieved OK 0x%x \n\r",(TWSR & 0xF8));
 
 	//send data, in this case an address
-	TWDR = reg_address;// accell x value msb's
+	TWDR=address;// accell x value msb's
 	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
 
 	while(!(TWCR&(1<<TWINT)));//wait for data to tx
@@ -365,8 +363,6 @@ uint8_t i2c_read_accell(uint8_t chip_address, uint8_t reg_address) //??? Double 
 
 	//send stop bit
 	TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWSTO);
-	//
-	// ??BH?? I think this can bo omitted */
 
 
 	////master receiver mode
@@ -382,7 +378,7 @@ uint8_t i2c_read_accell(uint8_t chip_address, uint8_t reg_address) //??? Double 
 	printf("start condition error 0x%x\n\r",(TWSR & 0xF8));
 
 	//Load read addres of slave in to TWDR, 
-	 SLA_W=chip_address | 1;//	 SLA_W=0b11010001;
+	 SLA_W=accell | 1;//	 SLA_W=0b11010001;
 	TWDR=SLA_W;
 
 	//start transmission
@@ -424,23 +420,24 @@ int main(void)
 
 	while(1)
 	{	
-			_delay_ms(500);
+	//		if (input.switch_S4_m==1){
 
             setLED(50,50,50);
+	//		}
+	//		else{
 
-            _delay_ms(500);
-
-            setLED(0,0,0);
+      //      setLED(0,0,0);
+		//	}
 			
-//			printf("We can print without i2c");
+		//	printf("We can print without i2c \n\r");
 
-
+			printf("%d \n\r", input.switch_S4_m);
 //			output.speed_dock_m5_m=225;
 //			output.direction_dock_m5_m=0;
 //			output.direction_bend_m3_m=1; // 0 positive
 //			output.speed_bend_m3_m=225;
 //			output.vibration_m=1;
-			printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
+//			printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
 //			printf("%#08X \n\r", IMU_ADDRESS);
 //			printf("IR %d %d \n\r", input.IR1_m, input.IR2_m);
 //			input.IR2_m=get_IR_U5();
@@ -449,7 +446,7 @@ int main(void)
 						
 			//you can adjust this delay.. eventually if too small it may cause problems, but you can fix this by changing it back
 			_delay_ms(20);
-			master_output_update();
+//			master_output_update();
 			master_input_update();
 	}
 
@@ -501,12 +498,12 @@ void master_output_update() //motor updates
 
 void master_input_update()  
 {
-//	input.switch_dock_m=switch_dock();
+	input.switch_S4_m=get_switch_input(S4_port, S4_pin); //((PIND & (1<<4)) >> 4);
 //	input.switch_tension_m=switch_tension1();
 //	input.bend_m=get_bend();
-	input.IR1_m=get_IR_Flex_U1513();
+//	input.IR1_m=get_IR_Flex_U1513();
 //	printf("%d \n\r",input.IR1_m);
-	input.IR2_m=get_IR_U5();
+//	input.IR2_m=get_IR_U5();
 //	printf("%d \n\r",input.IR2_m);
 
 		//get accel data from master side
@@ -522,6 +519,7 @@ void master_input_update()
 
 //	i2c_write_accell(IMU_ADDRESS,0x6b,0); //check addresses/values ??? // ??BH?? not sure about this 0x6b address, could not find it in old/new chip datasheet
 	// ??BH?? registers to be set seem to be USER_CTRL, should be set to all 0
+	/*
 	int x=((i2c_read_accell( IMU_ADDRESS, ACCEL_XOUT_H)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, ACCEL_XOUT_L)&0x00ff);
 	int y=((i2c_read_accell( IMU_ADDRESS, ACCEL_YOUT_H)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, ACCEL_YOUT_L)&0x00ff);			
 	int z=((i2c_read_accell( IMU_ADDRESS, ACCEL_ZOUT_H)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, ACCEL_ZOUT_L)&0x00ff);
@@ -551,7 +549,7 @@ void master_input_update()
 	input.accell_m[0]=x;
 	input.accell_m[1]=y;
 	input.accell_m[2]=z;
-	
+*/	
 }
 
 ///////////////////INPUT READ FUNCTIONS
@@ -568,6 +566,23 @@ int switch_tension1(void) //Rewrite more efficiently? e.g. as a macro?
 		return(1);
 	}
 }
+
+int switch_S4(void) {
+	return (((PIND & (1<<4)) >> 4));
+}
+	 //consider renaming (control switch)
+/*
+	if((PIND & (1<<4))!=0)//switch connected to PD4, low when connected, so when not low, switch is not connected.
+	{
+		return(0);
+	}
+	else
+	{
+		return(1);
+	}
+
+*/
+
 
 int switch_power(void) //Rewrite more efficiently? e.g. as a macro?
 {
