@@ -192,8 +192,6 @@ void init(void)
 	//power on 
 	output(vreg1_port_direction, vreg1_pin);
 	set(vreg1_port, vreg1_pin); //turn on PC0 (vreg1)
-	//DDRC |= (1<<0); //output PC0
-	//PORTC |= (1<<0);  //turn on PC0 (Vreg1)
 
 	output(led_port_direction, led_pin); 	// RGB led init
 
@@ -427,21 +425,25 @@ int main(void)
 	sei();	
 
 	while(1)
+	
 	{	
-	//		if (input.switch_S4_m==1){
+			if (get_switch_input(S3_port, S3_pin)==1){
 
             setLED(50,50,50);
-	//		}
-	//		else{
+			}
+			else{
 
-      //      setLED(0,0,0);
-		//	}
+            setLED(0,0,0);
+			}
 			
 		//	printf("We can print without i2c \n\r");
 
+/////////////////DEBUGGING
+
 //			printf("%d \n\r", input.switch_S4_m);
-			printf("%d \n\r", input.switch_tension_m);
-//			printf("%d \n\r", ((PIND & (1<<3)) >> 3));
+//			printf("%d \n\r", input.switch_tension_m);
+//			printf("%d \n\r", get_switch_input(S3_port, S3_pin));
+
 //			output.speed_dock_m5_m=225;
 //			output.direction_dock_m5_m=0;
 //			output.direction_bend_m3_m=1; // 0 positive
@@ -453,10 +455,10 @@ int main(void)
 //			input.IR2_m=get_IR_U5();
 //			input.IR1_m=get_IR_Flex_U1513();
 //			printf("IR %d \n\r", input.IR1_m); //for bend sensor reading only - note change function name to reflect.
-						
+//////////////////////////						
 			//you can adjust this delay.. eventually if too small it may cause problems, but you can fix this by changing it back
 			_delay_ms(20);
-//			master_output_update();
+			master_output_update();
 			master_input_update();
 	}
 
