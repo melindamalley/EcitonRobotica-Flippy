@@ -175,6 +175,9 @@ void ioinit (void) { //usart
 
 }
 
+
+/////Setup everything
+
 void init(void)
 {
 
@@ -255,7 +258,7 @@ ISR(TWI_vect)
 	// TWINT bit = 1 to clear the TWINT flag
 	TWCR = (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
 }	
-
+/////////////IMU FUNCTIONS
 // ??BH?? function to be renamed in future revisions, i.e. i2c_imu_write 
 uint8_t i2c_write_accell(uint8_t accell,uint8_t address,uint8_t data) //??? Double check function not missing anything?
 {
@@ -417,6 +420,262 @@ uint8_t i2c_read_accell(uint8_t accell,uint8_t address) //??? Double check funct
 	return TWDR;
 
 }
+
+///////////master sends commands to slave
+int i2c_send()
+{
+	cli();	
+	
+	//start twi transmission
+	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
+
+	//wait for TWCR flag to set indication start is transmitted
+	while(!(TWCR &(1<<TWINT)));
+
+	//check to see if start is an error or not
+	if((TWSR & 0xF8) != 0x08){
+	printf("start of i2c read error\n\r");
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+
+	//Load read address of slave in to TWDR, 
+	TWDR=atmega_slave ;	 
+
+	//start transmission
+	TWCR=(1<<TWINT)|(1<<TWEN);
+
+	//wait for TWINT flag to se, indicating transmission and ack/nack receive
+	while(!(TWCR & (1<<TWINT)));
+
+	//check to see if ack received
+	if((TWSR & 0xF8) != 0x18)	{
+	printf("1 ack problem 0x%x \n\r",(TWSR & 0xF8));
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+	
+
+	TWDR=output.speed_bend_m3_s;
+
+
+	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
+
+	while(!(TWCR&(1<<TWINT)));//wait for data to tx
+
+	//check for data ack	
+	if((TWSR & 0xF8) != 0x28)	{
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+
+	TWDR=output.speed_dock_m5_s;
+
+	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
+
+	while(!(TWCR&(1<<TWINT)));//wait for data to tx
+
+	//check for data ack	
+	if((TWSR & 0xF8) != 0x28)	{
+	printf("3 ack problem is 0x%x\n\r",(TWSR & 0xF8));
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+
+	TWDR=output.direction_dock_m5_s;
+
+	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
+
+	while(!(TWCR&(1<<TWINT)));//wait for data to tx
+
+	//check for data ack	
+	if((TWSR & 0xF8) != 0x28)	{
+	printf("4 ack problem is 0x%x\n\r",(TWSR & 0xF8));
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+	TWDR=output.direction_bend_m3_s;
+
+	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
+
+	while(!(TWCR&(1<<TWINT)));//wait for data to tx
+
+	//check for data ack	
+	if((TWSR & 0xF8) != 0x28)	{
+	printf("5 ack problem is 0x%x\n\r",(TWSR & 0xF8));
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+	TWDR=output.led_s[0];
+
+	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
+
+	while(!(TWCR&(1<<TWINT)));//wait for data to tx
+
+	//check for data ack	
+	if((TWSR & 0xF8) != 0x28)	{
+	printf("5 ack problem is 0x%x\n\r",(TWSR & 0xF8));
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+	TWDR=output.led_s[1];
+
+	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
+
+	while(!(TWCR&(1<<TWINT)));//wait for data to tx
+
+	//check for data ack	
+	if((TWSR & 0xF8) != 0x28)	{
+	printf("5 ack problem is 0x%x\n\r",(TWSR & 0xF8));
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+	TWDR=output.led_s[2];
+
+	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
+
+	while(!(TWCR&(1<<TWINT)));//wait for data to tx
+
+	//check for data ack	
+	if((TWSR & 0xF8) != 0x28)	{
+	printf("5 ack problem is 0x%x\n\r",(TWSR & 0xF8));
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+
+	TWDR=sleep_mode;
+
+	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
+
+	while(!(TWCR&(1<<TWINT)));//wait for data to tx
+
+	//check for data ack	
+	if((TWSR & 0xF8) != 0x28)	{
+	printf("5 ack problem is 0x%x\n\r",(TWSR & 0xF8));
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+
+	TWCR = (1<<TWINT)|(1<<TWSTO);
+
+	return(0);
+}
+
+int i2c_read()//read all inputs from slave via i2c
+{
+	cli();
+	
+	uint8_t data_counter=0;
+	uint8_t temp_var=0;
+	//start twi transmission
+	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
+
+	//wait for TWCR flag to set indication start is transmitted
+	while(!(TWCR &(1<<TWINT)));
+
+	//check to see if start is an error or not
+	if((TWSR & 0xF8) != 0x08){
+	printf("start of i2c read error\n\r");
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+
+	//Load read addres of slave in to TWDR, 
+	TWDR=atmega_slave | 1;//	 SLA_W=0b11010001;
+
+	//start transmission
+	TWCR=(1<<TWINT)|(1<<TWEN);
+
+	//wait for TWINT flag to se, indicating transmission and ack/nack receive
+	while(!(TWCR & (1<<TWINT)));
+
+	//check to see if ack received
+	if((TWSR & 0xF8) != 0x40)	{
+	printf("first ack problem 0x%x \n\r",(TWSR & 0xF8));
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+//	printf("third ack recieved OK 0x%x \n\r",(TWSR & 0xF8));
+	TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWEA);
+	
+	while(data_counter<4)
+	{
+
+		if(data_counter<3)
+		{
+		TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWEA);
+		}
+		else
+		{
+			TWCR = (1<<TWINT)|(1<<TWEN);
+		}
+	//wait for TWINT flag to se, indicating transmission and ack/nack receive
+		while(!(TWCR & (1<<TWINT)));
+
+		//check to see if ack received
+		if(((TWSR & 0xF8) != 0x50)&&(data_counter!=3))	{
+		printf("data %d ack problem 0x%x \n\r",data_counter,(TWSR & 0xF8));
+		TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+		sei();
+		return (-1);
+		}
+		else if(((TWSR & 0xF8) != 0x58)&&(data_counter>=3))	{
+		printf("data %d ack problem 0x%x \n\r",data_counter,(TWSR & 0xF8));
+		TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+		sei();
+		return (-1);
+		}
+	//	printf("%d ack recieved  0x%x \n\r",data_counter,(TWSR & 0xF8));
+	//	printf("data rx is 0x%x \n\r",TWDR);
+		if(data_counter==0)
+		{
+			input.switch_tension_s=TWDR;
+		}
+		else if(data_counter==1)
+		{
+			input.switch_dock_s=TWDR;
+		}
+		else if(data_counter==2)
+		{
+			temp_var=TWDR;
+		
+		}else if(data_counter>=3)
+		{
+			input.bend_s=(TWDR<<8)+temp_var;
+		}
+		 
+			data_counter++;
+
+	}
+
+	TWCR = (1<<TWSTO)|(1<<TWINT);
+
+	if(data_counter==4)
+	{
+		
+		sei();
+		return 0;
+	
+	}
+	else
+	{
+	sei();
+	return -1;
+	}
+}
+
 
 // ??BH?? insert switch-case structure for debug vs normal operation code
 int main(void)
