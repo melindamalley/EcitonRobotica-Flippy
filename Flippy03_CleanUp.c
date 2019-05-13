@@ -21,7 +21,7 @@
 
 #define accell_slave_addrs  0b11010000 // IMU on slave board,  [7bit i2c address from chip datasheet,0] = 0xd0
 #define	accell_master_addrs 0b11010010 // IMU on master board, [7bit i2c address from chip datasheet,0] = 0xd2
-#define IMU_ADDRESS (accell_slave_addrs | (MASTER<<1)) // allows for unifying master/slave code, ??BH?? try printing to ensure correct assignment
+#define IMU_ADDRESS (accell_slave_addrs | (MASTER<<1)) // allows for unifying master/slave code
 
 // IMU chip registers, 0x3B to 0x40 for MPU-9250, 0x2D to 0x32 for replaced chip (first order) ICM-20948
 #define ACCEL_XOUT_H	0x3B //0x2D //for ICM-20948
@@ -63,14 +63,17 @@
 #define led_pin (1 << 7)
 
 //Switch S4 PD4
+#define S4_port_direction DDRD
 #define S4_port PIND //(((PIND & (1<<4)) >> 4))
 #define S4_pin 4
 
 //Switch "Power" PD3
+#define S3_port_direction DDRD
 #define S3_port PIND 
 #define S3_pin 3
 
 //Switch "Tension"
+define STension_port_direction DDRB
 #define STension_port PINB 
 #define STension_pin 1
 

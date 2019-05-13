@@ -33,7 +33,7 @@
 #define gripperspd 180
 
 
-#define MASTER 0 //choose master or slave 
+#define MASTER 1 //choose master or slave 
 
 void setLED(unsigned char red, unsigned char green, unsigned char blue);
 int switch_power(void);
@@ -1380,11 +1380,11 @@ else{
 		//	printf("%4d %4d \n\r",input.bend_s,input.bend_m);
 			//below are the 4 update functions
 			//send output commands to slave side						
-//			i2c_send();
+			i2c_send();
 			//update output commands on master side
 			master_output_update();
 			//update slave side input values
-//			i2c_read();
+			i2c_read();
 			//update master side input values
 			master_input_update();
 		
@@ -1422,7 +1422,7 @@ else{
 				{
 					if(rx_data_count==0)
 					{
-						flex_speed=TWDR;
+						flex_speed=TWDR; //rename
 					}
 					else if(rx_data_count==1)
 					{
@@ -1800,7 +1800,7 @@ void master_input_update()
 		//get accel data from master side
 	
 	//i2c_write_accell( 0b11010010,0x1c,0b11100000);
-/*
+
 	i2c_write_accell( 0b11010010,0x6b,0);
 	int x=((i2c_read_accell( 0b11010010, 0x3b)<<8)&0xff00)+(i2c_read_accell( 0b11010010, 0x3c)&0x00ff);
 	int y=((i2c_read_accell( 0b11010010, 0x3d)<<8)&0xff00)+(i2c_read_accell( 0b11010010, 0x3e)&0x00ff);			
@@ -1828,9 +1828,9 @@ void master_input_update()
 
 		//i2c_write_accell( 0b11010010,0x1c,0b11100000);
 	i2c_write_accell( 0b11010000,0x6b,0);
-	int x=((i2c_read_accell( 0b11010000, 0x3b)<<8)&0xff00)+(i2c_read_accell( 0b11010000, 0x3c)&0x00ff);
-	int y=((i2c_read_accell( 0b11010000, 0x3d)<<8)&0xff00)+(i2c_read_accell( 0b11010000, 0x3e)&0x00ff);			
-	int z=((i2c_read_accell( 0b11010000, 0x3f)<<8)&0xff00)+(i2c_read_accell( 0b11010000, 0x40)&0x00ff);
+	x=((i2c_read_accell( 0b11010000, 0x3b)<<8)&0xff00)+(i2c_read_accell( 0b11010000, 0x3c)&0x00ff);
+	y=((i2c_read_accell( 0b11010000, 0x3d)<<8)&0xff00)+(i2c_read_accell( 0b11010000, 0x3e)&0x00ff);			
+	z=((i2c_read_accell( 0b11010000, 0x3f)<<8)&0xff00)+(i2c_read_accell( 0b11010000, 0x40)&0x00ff);
 		//convert from 2's complement
     if(x>0x8000)
     {
@@ -1848,10 +1848,10 @@ void master_input_update()
         z=-z-1;
     }
 
-	input.accell_m[0]=x;
-	input.accell_m[1]=y;
-	input.accell_m[2]=z;
-*/
+	input.accell_s[0]=x;
+	input.accell_s[1]=y;
+	input.accell_s[2]=z;
+
 //	printf("bend is %d\n\r",input.bend_m);
 }
 /* 
