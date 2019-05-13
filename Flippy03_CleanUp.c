@@ -15,15 +15,15 @@
 
 #define FOSC 8000000 // oscillator clock frequency, page 166 datasheet, not sure why it's set to this value though
 #define BAUD 9600 // baud rate desired
-#define MYUBRR (((((FOSC * 10) / (16L * BAUD)) + 5) / 10)) // used to set the UBRR high and low registers, Usart Baud Rate registers, not sure about the formulat though, see datasheet page 146
+#define MYUBRR ((FOSC/(16L * BAUD)) - 1) //(((((FOSC * 10) / (16L * BAUD)) + 5) / 10)) // used to set the UBRR high and low registers, Usart Baud Rate registers, not sure about the formulat though, see datasheet page 146
 
-///////// IMU information
-
+// IMU information
 #define accell_slave_addrs  0b11010000 // IMU address on slave board,  [7bit i2c embedded chip address from IMU datasheet,0] = 0xd0
 #define	accell_master_addrs 0b11010010 // IMU address on master board, [7bit i2c embedded chip address from IMU datasheet,0] = 0xd2
-#define IMU_ADDRESS (accell_slave_addrs | (MASTER<<1)) // allows for unifying master/slave code, ??BH?? try printing to ensure correct assignment
+#define IMU_ADDRESS (MASTER ? accell_master_addrs : accell_slave_addrs)  // (Condition? true_value: false_value) // (accell_slave_addrs | (MASTER<<1)) // allows for unifying master/slave code, ??BH?? try printing to ensure correct assignment
 
-// IMU chip registers, 0x3B to 0x40 for MPU-9250 (Mar 2019 order), 0x2D to 0x32 for ICM-20948 (Dec 2018 order)
+// IMU chip registers
+// accelerometer registers 0x3B to 0x40 for MPU-9250 (Mar 2019 order), 0x2D to 0x32 for ICM-20948 (Dec 2018 order)
 #define ACCEL_XOUT_H	0x3B 	// 0x2D //for ICM-20948
 #define ACCEL_XOUT_L	0x3C 	// 0x2E //for ICM-20948
 
@@ -32,6 +32,8 @@
 
 #define ACCEL_ZOUT_H	0x3F	// 0x31 //for ICM-20948
 #define ACCEL_ZOUT_L	0x40	// 0x32 //for ICM-20948
+
+#define PWR_MGMT_1		0x6B   	// should be set to 0 for Accel to be running, see datasheet page 31
 
 ///////////
 
@@ -78,6 +80,7 @@ int switch_dock(void);
 int get_bend(void);
 int get_IR_Flex_U1513(void);
 int get_IR_U5(void);
+void get_IMU_measurement(void);
 void master_output_update(void);
 void master_input_update(void);
 void flipbend(char side, char p);
@@ -316,7 +319,7 @@ uint8_t i2c_write_accell(uint8_t chip_address,uint8_t reg_address,uint8_t data) 
 uint8_t i2c_read_accell(uint8_t chip_address, uint8_t reg_address) //??? Double check function not missing anything?
 {
 	
-	/* // ??BH?? I think this can be omitted
+	/* // ??BH?? I think this can be omitted */
 	// start TWI transmission
 	// Two Wire Control Register (TWCR)
 	// TWEN bit = 1 to enable the 2-wire serial interface
@@ -350,7 +353,7 @@ uint8_t i2c_read_accell(uint8_t chip_address, uint8_t reg_address) //??? Double 
 	//check to see if ack received
 	if((TWSR & 0xF8) != 0x18)	
 	printf("first ack problem 0x%x \n\r",(TWSR & 0xF8));
-//	printf("ack recieved OK 0x%x \n\r",(TWSR & 0xF8));
+    //	printf("ack recieved OK 0x%x \n\r",(TWSR & 0xF8));
 
 	//send data, in this case an address
 	TWDR = reg_address;// accell x value msb's
@@ -361,7 +364,7 @@ uint8_t i2c_read_accell(uint8_t chip_address, uint8_t reg_address) //??? Double 
 	//check for data ack	
 	if((TWSR & 0xF8) != 0x28)	
 	printf("second ack problem is 0x%x\n\r",(TWSR & 0xF8));
-//	printf("second ack received OK is 0x%x\n\r",(TWSR & 0xF8));
+	//	printf("second ack received OK is 0x%x\n\r",(TWSR & 0xF8));
 
 	//send stop bit
 	TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWSTO);
@@ -382,7 +385,7 @@ uint8_t i2c_read_accell(uint8_t chip_address, uint8_t reg_address) //??? Double 
 	printf("start condition error 0x%x\n\r",(TWSR & 0xF8));
 
 	//Load read addres of slave in to TWDR, 
-	 SLA_W=chip_address | 1;//	 SLA_W=0b11010001;
+	SLA_W=chip_address | 1;//	 SLA_W=0b11010001;
 	TWDR=SLA_W;
 
 	//start transmission
@@ -394,26 +397,25 @@ uint8_t i2c_read_accell(uint8_t chip_address, uint8_t reg_address) //??? Double 
 	//check to see if ack received
 	if((TWSR & 0xF8) != 0x40)	
 	printf("third ack problem 0x%x \n\r",(TWSR & 0xF8));
-//	printf("third ack recieved OK 0x%x \n\r",(TWSR & 0xF8));
+	//	printf("third ack recieved OK 0x%x \n\r",(TWSR & 0xF8));
 	
 	TWCR = (1<<TWINT)|(1<<TWEN);
 
 	
-//wait for TWINT flag to se, indicating transmission and ack/nack receive
+	//wait for TWINT flag to se, indicating transmission and ack/nack receive
 	while(!(TWCR & (1<<TWINT)));
 
 	//check to see if ack received
 	if((TWSR & 0xF8) != 0x58)	
 	printf("third ack problem 0x%x \n\r",(TWSR & 0xF8));
-//	printf("third ack recieved OK 0x%x \n\r",(TWSR & 0xF8));
+	//	printf("third ack recieved OK 0x%x \n\r",(TWSR & 0xF8));
 
 	// transmit STOP condition 
 	TWCR = (1<<TWINT)|(1<<TWSTO);
-//wait for TWINT flag to se, indicating transmission and ack/nack receive
+	//wait for TWINT flag to se, indicating transmission and ack/nack receive
 	//while(!(TWCR & (1<<TWINT)));
 	//_delay_ms(10);
 	return TWDR;
-
 }
 
 // ??BH?? insert switch-case structure for debug vs normal operation code
@@ -501,16 +503,21 @@ void master_output_update() //motor updates
 
 void master_input_update()  
 {
-//	input.switch_dock_m=switch_dock();
-//	input.switch_tension_m=switch_tension1();
-//	input.bend_m=get_bend();
+	//	input.switch_dock_m=switch_dock();
+	//	input.switch_tension_m=switch_tension1();
+	//	input.bend_m=get_bend();
 	input.IR1_m=get_IR_Flex_U1513();
-//	printf("%d \n\r",input.IR1_m);
+	//	printf("%d \n\r",input.IR1_m);
 	input.IR2_m=get_IR_U5();
-//	printf("%d \n\r",input.IR2_m);
+	//	printf("%d \n\r",input.IR2_m);
 
-		//get accel data from master side
+	//get accel data from master side
+	get_IMU_measurement();
 	
+}
+
+void get_IMU_measurement(void)
+{	
 	//i2c_write_accell( 0b11010010,0x1c,0b11100000);
 
 	// Measurement data is stored in two’s complement and Little Endian format. 
@@ -520,7 +527,7 @@ void master_input_update()
 	/* 0x6b address see MPU9150 (really old accel) something to do with setting the configuration. Not sure if this is the right address. 
 	*/
 
-//	i2c_write_accell(IMU_ADDRESS,0x6b,0); //check addresses/values ??? // ??BH?? not sure about this 0x6b address, could not find it in old/new chip datasheet
+	i2c_write_accell(IMU_ADDRESS,PWR_MGMT_1,0); //check addresses/values ??? // ??BH?? not sure about this 0x6b address, could not find it in old/new chip datasheet
 	// ??BH?? registers to be set seem to be USER_CTRL, should be set to all 0
 	int x=((i2c_read_accell( IMU_ADDRESS, ACCEL_XOUT_H)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, ACCEL_XOUT_L)&0x00ff);
 	int y=((i2c_read_accell( IMU_ADDRESS, ACCEL_YOUT_H)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, ACCEL_YOUT_L)&0x00ff);			
@@ -531,27 +538,23 @@ void master_input_update()
     if(x>0x8000)
     {
         x=x ^ 0xffff;
-        //x=-x-1; ??BH??
-        x=x+1;
+        x=-x-1; 
     }
 	if(y>0x8000)
     {
         y=y ^ 0xffff;
-        //y=-y-1; ??BH??
-        y=y+1;
+        y=-y-1; 
     }
 	if(z>0x8000)
     {
         z=z ^ 0xffff;
-        //z=-z-1; ??BH??
-        z=z+1;
+        z=-z-1; 
     }
 
     // update values input to MCU from IMU
 	input.accell_m[0]=x;
 	input.accell_m[1]=y;
 	input.accell_m[2]=z;
-	
 }
 
 ///////////////////INPUT READ FUNCTIONS
