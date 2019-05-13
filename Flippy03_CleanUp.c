@@ -73,9 +73,21 @@
 #define S3_pin 3
 
 //Switch "Tension"
-define STension_port_direction DDRB
+#define STension_port_direction DDRB
 #define STension_port PINB 
 #define STension_pin 1
+
+//Motor M5 direction is PB6 and speed/PWM is OCR0B (PD5)
+#define M5_pin (1<<6)
+#define M5_port_dir DDRB
+#define M5_port PORTB
+#define M5_PWM OCR0B
+
+//Motor M3 direction is PB7 and speed/PWM is OCR0A (PD6)
+#define M3_pin (1<<7)
+#define M3_port_dir DDRB
+#define M3_port PORTB
+#define M3_PWM OCR0A
 
 ///////////////
 
@@ -87,6 +99,7 @@ define STension_port_direction DDRB
 
 //Define helper functions
 void setLED(unsigned char red, unsigned char green, unsigned char blue);
+void set_M5(unsigned char dir, unsigned char speed);
 int switch_power(void);
 int switch_tension1(void);
 int switch_S4(void);
@@ -648,7 +661,7 @@ int i2c_read()//read all inputs from slave via i2c
 		}
 		else if(data_counter==1)
 		{
-			input.switch_dock_s=TWDR;
+			input.switch_S4_s=TWDR;
 		}
 		else if(data_counter==2)
 		{
@@ -689,12 +702,14 @@ int main(void)
 	while(1)
 	
 	{	
-			if (get_switch_input(S3_port, S3_pin)==1){
+			if (input.switch_S4_m==0){
 
             setLED(50,50,50);
+			output.direction_bend_m3_m=1;
+			output.speed_bend_m3_m=225;
 			}
 			else{
-
+			output.speed_bend_m3_m=0;
             setLED(0,0,0);
 			}
 			
@@ -728,35 +743,8 @@ int main(void)
 
 void master_output_update() //motor updates
 {
-
-	if(output.direction_dock_m5_m==0)
-	{
-		DDRB |= (1<<6); //set direction dock motor (M5) PB6 output
-		PORTB &= ~(1<<6); //set dock motor (M5) PB6 low - (in2/in4 on hbridge)
-		OCR0B = output.speed_dock_m5_m; //sets PWM for OCR0B (PD5) - in1/in3 on hbridge - motor goes forward on high portion
-
-	}
-	else
-	{
-		DDRB |= (1<<6); //set direction dock motor (M5) PB6 output
-		PORTB |= (1<<6); //set dock motor (M5) PB6 high - (in2 and in4 on hbridge)
-		OCR0B = 255-output.speed_dock_m5_m; //sets PWM for OCR0B (PD5) - in1/in3 on hbridge - motor goes backward on low portion
-	}
-
-
-	if(output.direction_bend_m3_m==0)
-	{
-		DDRB |= (1<<7); //set direction bend motor (M3) PB7 output
-		PORTB &= ~(1<<7); //set bend motor (M3) PB7 low - (in2/in4 on hbridge)
-		OCR0A = output.speed_bend_m3_m; //sets PWM for OCR0A (PD6) - in1/in3 on hbridge - motor goes forward on high portion
-
-	}
-	else
-	{
-		DDRB |= (1<<7); //set direction bend motor (M3) PB7 output
-		PORTB |= (1<<7); //set bend motor (M3) PB7 high - (in2/in4 on hbridge)
-		OCR0A = 255-output.speed_bend_m3_m; //sets PWM for OCR0A (PD6) - in1/in3 on hbridge - motor goes backward on low portion
-	}
+	set_M5(output.direction_dock_m5_m, output.speed_dock_m5_m);
+	set_M3(output.direction_bend_m3_m, output.speed_bend_m3_m);
 
 	if (output.vibration_m==1)
 	{	
@@ -910,4 +898,28 @@ void setLED(unsigned char red, unsigned char green, unsigned char blue)
 	}
 
 	_delay_us(80);//End of Sequence
+}
+
+void set_M5(unsigned char dir, unsigned char speed){
+//	output(M5_port_dir, M5_pin); ??? Do we need to set the outputs again after init? Seems to work w/o and may be unnecessary
+	if (dir==0){ //Note 0 is positive
+		clear(M5_port, M5_pin); //set dock motor (M5) PB6 low - (in2/in4 on hbridge)
+		M5_PWM = speed; //sets PWM for OCR0B (PD5) - in1/in3 on hbridge - motor goes forward on high portion
+	}
+	else {
+		set(M5_port, M5_pin);
+		M5_PWM = 255-speed; //sets PWM for OCR0B (PD5) - in1/in3 on hbridge - motor goes backward on low portion
+	}
+}
+
+void set_M3(unsigned char dir, unsigned char speed){
+//	output(M3_port_dir, M3_pin); ??? Do we need to set the outputs again after init? Seems to work w/o and may be unnecessary
+	if (dir==0){ //Note 0 is positive
+		clear(M3_port, M3_pin); //set dock motor (M5) PB6 low - (in2/in4 on hbridge)
+		M3_PWM = speed; //sets PWM for OCR0B (PD5) - in1/in3 on hbridge - motor goes forward on high portion
+	}
+	else {
+		set(M3_port, M3_pin);
+		M3_PWM = 255-speed; //sets PWM for OCR0B (PD5) - in1/in3 on hbridge - motor goes backward on low portion
+	}
 }
