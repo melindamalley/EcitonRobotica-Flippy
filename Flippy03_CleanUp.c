@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <avr/interrupt.h>
 
-#define MASTER 1 // 1 for Master, 0 for Slave 
+#define MASTER 0 // 1 for Master, 0 for Slave 
 
 #define FOSC 8000000 // oscillator clock frequency, page 166 datasheet, not sure why it's set to this value though
 #define BAUD 9600 // baud rate desired
@@ -701,22 +701,20 @@ int main(void)
 
 	while(1)
 	
+/////////////////DEBUGGING	
 	{	
-			if (input.switch_S4_m==0){
+/*			if (input.switch_S4_m==0){
 
             setLED(50,50,50);
 			output.direction_bend_m3_m=1;
-			output.speed_bend_m3_m=225;
+//			output.speed_bend_m3_m=225;
 			}
 			else{
 			output.speed_bend_m3_m=0;
             setLED(0,0,0);
 			}
-			
-		//	printf("We can print without i2c \n\r");
-
-/////////////////DEBUGGING
-
+*/			
+//			printf("We can print without i2c \n\r");
 //			printf("%d \n\r", input.switch_S4_m);
 //			printf("%d \n\r", input.switch_tension_m);
 //			printf("%d \n\r", get_switch_input(S3_port, S3_pin));
@@ -726,17 +724,18 @@ int main(void)
 //			output.direction_bend_m3_m=1; // 0 positive
 //			output.speed_bend_m3_m=225;
 //			output.vibration_m=1;
-//			printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
+			printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
 //			printf("%#08X \n\r", IMU_ADDRESS);
 //			printf("IR %d %d \n\r", input.IR1_m, input.IR2_m);
 //			input.IR2_m=get_IR_U5();
 //			input.IR1_m=get_IR_Flex_U1513();
 //			printf("IR %d \n\r", input.IR1_m); //for bend sensor reading only - note change function name to reflect.
-//////////////////////////						
-			//you can adjust this delay.. eventually if too small it may cause problems, but you can fix this by changing it back
-			_delay_ms(20);
+//////////////////////////
 			master_output_update();
-			master_input_update();
+			master_input_update();						
+			//you can adjust this delay.. eventually if too small it may cause problems, but you can fix this by changing it back
+			_delay_ms(200);
+
 	}
 
 }
@@ -779,9 +778,9 @@ void master_input_update()
 	/* 0x6b address see MPU9150 (really old accel) something to do with setting the configuration. Not sure if this is the right address. 
 	*/
 
-//	i2c_write_accell(IMU_ADDRESS,0x6b,0); //check addresses/values ??? // ??BH?? not sure about this 0x6b address, could not find it in old/new chip datasheet
+	i2c_write_accell(IMU_ADDRESS,0x6b,0); //check addresses/values ??? // ??BH?? not sure about this 0x6b address, could not find it in old/new chip datasheet
 	// ??BH?? registers to be set seem to be USER_CTRL, should be set to all 0
-	/*
+	
 	int x=((i2c_read_accell( IMU_ADDRESS, ACCEL_XOUT_H)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, ACCEL_XOUT_L)&0x00ff);
 	int y=((i2c_read_accell( IMU_ADDRESS, ACCEL_YOUT_H)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, ACCEL_YOUT_L)&0x00ff);			
 	int z=((i2c_read_accell( IMU_ADDRESS, ACCEL_ZOUT_H)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, ACCEL_ZOUT_L)&0x00ff);
@@ -811,7 +810,7 @@ void master_input_update()
 	input.accell_m[0]=x;
 	input.accell_m[1]=y;
 	input.accell_m[2]=z;
-*/	
+	
 }
 
 ///////////////////INPUT READ FUNCTIONS
