@@ -447,7 +447,24 @@ int main(void)
 				_delay_ms(500);
 	            setLED(50,50,50);
 	            _delay_ms(500);
-	            setLED(0,0,0);		
+	            setLED(0,0,0);
+
+				//output.speed_dock_m5_m=225;
+				//output.direction_dock_m5_m=0;
+				//output.direction_bend_m3_m=1; // 0 positive
+				//output.speed_bend_m3_m=225;
+				//output.vibration_m=1;
+				printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
+				//printf("%#08X \n\r", IMU_ADDRESS);
+				//printf("IR %d %d \n\r", input.IR1_m, input.IR2_m);
+				//nput.IR2_m=get_IR_U5();
+				//input.IR1_m=get_IR_Flex_U1513();
+				//printf("IR %d \n\r", input.IR1_m); //for bend sensor reading only - note change function name to reflect.
+							
+				//you can adjust this delay.. eventually if too small it may cause problems, but you can fix this by changing it back
+				_delay_ms(20);
+				master_output_update();
+				master_input_update();		
 			break;
 
 			case EXPERIMENT :
@@ -463,31 +480,6 @@ int main(void)
 			break;
 		}
 	}
-
-	while(0)
-	{	
-			
-//			printf("We can print without i2c");
-
-
-//			output.speed_dock_m5_m=225;
-//			output.direction_dock_m5_m=0;
-//			output.direction_bend_m3_m=1; // 0 positive
-//			output.speed_bend_m3_m=225;
-//			output.vibration_m=1;
-			printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
-//			printf("%#08X \n\r", IMU_ADDRESS);
-//			printf("IR %d %d \n\r", input.IR1_m, input.IR2_m);
-//			input.IR2_m=get_IR_U5();
-//			input.IR1_m=get_IR_Flex_U1513();
-//			printf("IR %d \n\r", input.IR1_m); //for bend sensor reading only - note change function name to reflect.
-						
-			//you can adjust this delay.. eventually if too small it may cause problems, but you can fix this by changing it back
-			_delay_ms(20);
-			master_output_update();
-			master_input_update();
-	}
-
 }
 
 void master_output_update() //motor updates
