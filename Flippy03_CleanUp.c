@@ -758,6 +758,111 @@ int main(void)
 				switch(system_state & 0xF0) {
 
 					case SETUP :
+
+					switch(state){
+						case 9 : //unwind motors (reset the motors in error case)
+							if ((input.switch_tension_m==0)||(input.switch_tension_s==0)){
+								output.direction_bend_m3_m=1;
+								output.direction_bend_m3_s=1; //set both motor directiosn to backwards
+								output.speed_bend_m3_m=unwindspd; 
+								output.speed_bend_m3_s=unwindspd;
+							}
+							else {
+								output.speed_bend_m3_m=0; 
+								output.speed_bend_m3_s=0;
+								state=state0; //reset back to original state
+							}
+							break;
+						case 10: //rewind motors
+							output.direction_bend_m3_m=0;
+							output.direction_bend_m3_s=0;
+							if ((input.switch_dock_m==0)&(input.switch_dock_s==0)){
+								toggle=1;
+							}
+							if (toggle==1){
+								if(input.switch_tension_s==1){
+									output.speed_bend_m3_m=60;
+								}
+								else {
+									output.speed_bend_m3_m=0;
+								}
+								if(input.switch_tension_m==1) {
+									output.speed_bend_m3_s=60;
+								}
+								else {
+									output.speed_bend_m3_s=0;
+								}	
+							}
+							if ((input.switch_tension_s==0)&(input.switch_tension_m==0)&(toggle=1)){
+								if(input.switch_dock_m==1){
+									state=11;
+									toggle=0;
+									_delay_ms(2000);
+									break;
+								}
+							}
+						break;
+						case 11: //attach or detach slave side
+								output.led_m[0]=20;
+							if ((input.switch_dock_m==1)&&(input.switch_dock_s==1)){
+								output.speed_dock_m5_s=0;
+								output.speed_dock_m5_m=0;
+								output.led_s[0]=0;
+								output.led_s[1]=0;
+								output.led_m[0]=0;
+								state=12;
+								_delay_ms(2000);
+								break;
+							}
+							else if (input.switch_dock_m==1){
+								output.led_s[0]=20;
+								output.led_s[1]=0;
+								output.direction_dock_m5_s=0;
+								output.speed_dock_m5_s=0.7*gripperspd;
+							}
+							else if (input.switch_dock_s==1){
+								output.led_s[0]=0;
+								output.led_s[1]=20;
+								output.direction_dock_m5_s=1;
+								output.speed_dock_m5_s=gripperspd;
+							}
+							else{
+								output.led_s[0]=0;
+								output.led_s[1]=0;
+								output.speed_dock_m5_s=0;
+							}
+						break;
+						case 12: //attach or detach master side
+								output.led_s[0]=20;
+							if ((input.switch_dock_m==1)&&(input.switch_dock_s==1)){
+								output.speed_dock_m5_s=0;
+								output.speed_dock_m5_m=0;
+								output.led_m[0]=0;
+								output.led_m[1]=0;
+								output.led_s[0]=0;
+								_delay_ms(9000);
+								break;
+							}
+							else if (input.switch_dock_m==1){
+								output.led_m[0]=20;
+								output.led_m[1]=0;
+								output.direction_dock_m5_m=0;
+								output.speed_dock_m5_m=0.7*gripperspd;
+							}
+							else if (input.switch_dock_s==1){
+								output.led_m[0]=0;
+								output.led_m[1]=20;
+								output.direction_dock_m5_m=1;
+								output.speed_dock_m5_m=gripperspd;
+							}
+							else{
+								output.led_m[0]=0;
+								output.led_m[1]=0;
+								output.speed_dock_m5_m=0;
+							}
+								break;
+						}
+
 					break;
 
 					case FLIP :
