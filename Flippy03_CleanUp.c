@@ -13,14 +13,14 @@
 
 #define MASTER 1 // 1 for Master, 0 for Slave 
 
-#define FOSC 8000000 // oscillator clock frequency, page 166 datasheet, not sure why it's set to this value though
+#define FOSC 8000000 // oscillator clock frequency, page 164 datasheet, internal RC oscillator clock source selected by fuse bits
 #define BAUD 9600 // baud rate desired
-#define MYUBRR ((FOSC/(16L * BAUD)) - 1) //(((((FOSC * 10) / (16L * BAUD)) + 5) / 10)) // used to set the UBRR high and low registers, Usart Baud Rate registers, not sure about the formulat though, see datasheet page 146
+#define MYUBRR ((FOSC/(16L * BAUD)) - 1) // used to set the UBRR high and low registers, Usart Baud Rate registers, for formula see datasheet page 146
 
 // IMU information
-#define accell_slave_addrs  0b11010000 // IMU address on slave board,  [7bit i2c embedded chip address from IMU datasheet,0] = 0xd0
-#define	accell_master_addrs 0b11010010 // IMU address on master board, [7bit i2c embedded chip address from IMU datasheet,0] = 0xd2
-#define IMU_ADDRESS (MASTER ? accell_master_addrs : accell_slave_addrs)  // (Condition? true_value: false_value) // (accell_slave_addrs | (MASTER<<1)) // allows for unifying master/slave code, ??BH?? try printing to ensure correct assignment
+#define accell_slave_addrs  0b11010000 // IMU address on slave board,  [7bit i2c embedded address from IMU chip datasheet,0] = 0xd0
+#define	accell_master_addrs 0b11010010 // IMU address on master board, [7bit i2c embedded address from IMU chip datasheet,0] = 0xd2
+#define IMU_ADDRESS (MASTER ? accell_master_addrs : accell_slave_addrs)  // (Condition? true_value: false_value), for unifying master/slave code
 
 // IMU chip registers
 // accelerometer registers 0x3B to 0x40 for MPU-9250 (Mar 2019 order), 0x2D to 0x32 for ICM-20948 (Dec 2018 order)
@@ -33,11 +33,16 @@
 #define ACCEL_ZOUT_H	0x3F	// 0x31 //for ICM-20948
 #define ACCEL_ZOUT_L	0x40	// 0x32 //for ICM-20948
 
-#define PWR_MGMT_1		0x6B   	// should be set to 0 for Accel to be running, see datasheet page 31
+#define PWR_MGMT_1		0x6B   	// should be set to 0 for Accel to be run, see datasheet page 31
 
-///////////
+// system states
+#define TEST	0x00
+#define EXPERIMENT	0x01
+#define SETUP	0x0F
+#define FLIP	0x1F
 
-#define atmega_slave 0xf0 // // address of the slave board processor, to be renamed to something more meaningful e.g. MCU_slave_address
+// 
+#define atmega_slave 0xf0 // // address of the slave board processor, to be renamed to something more meaningful e.g. SLAVE_MCU_ADDRESS
 #define led_wrt_cmd 0x3A // led driver write command
 
 //////////////////////////////////////
@@ -88,6 +93,9 @@ double get_accel_diff(void);
 
 void init(void);
 int i2c_send(void);
+
+// system state
+uint8_t system_state = TEST;
 
 // Robot Inputs/Sensors
 struct inputs{
@@ -147,12 +155,19 @@ This macro acts similar to fdev_setup_stream(), used as the initializer of a var
 //FILE mystdout = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
 FILE mystdout;
 
-//Don't understand, but this is also necessary for printf
-void ioinit (void) { //usart
-    UBRR0H = MYUBRR >> 8; //clock
-    UBRR0L = MYUBRR;  
+// rename function to something more meaningful, i.e. USART_init
+void ioinit (void) { 
+	// Set baud rate
+    UBRR0H = (unsigned char) (MYUBRR >> 8);
+    UBRR0L = (unsigned char) MYUBRR;  
+    // Enable USART transmitter to print on PC screen, (1<<TXEN0)
+    // Enabel USART receiver to receive commands from PC, (1<<RXEN0), not included in original code
     UCSR0B = (1<<TXEN0);
-    
+
+    /* Set frame format: 8data, 2stop bit, not included in original code
+	UCSR0C = (1<<USBS0)|(3<<UCSZ00);
+    */
+
     /* #define fdev_setup_stream(stream, put, get, rwflag) from stdio.h	for use when programming in C++, Atmel Studio 7 project
 	Setup a user-supplied buffer as an stdio stream.
 	This macro takes a user-supplied buffer stream, and sets it up as a stream that is valid for stdio operations, 
@@ -165,7 +180,7 @@ void ioinit (void) { //usart
 
 void init(void)
 {
-	// all ports as input, pull-up resistors deactivated, all pins on Hi-Z
+	// Set all pins on Hi-Z, all ports as input & pull-up resistors deactivated
 	DDRB=0;
 	PORTB=0;
 	DDRC=0;
@@ -173,16 +188,19 @@ void init(void)
 	DDRD=0;
 	PORTD=0;
 
-	ioinit(); // USART init
+	// USART init
+	ioinit(); 
 
 	sleep_mode=0;
+
 	//power on 
 	output(vreg1_port_direction, vreg1_pin);
 	set(vreg1_port, vreg1_pin); //turn on PC0 (vreg1)
 	//DDRC |= (1<<0); //output PC0
 	//PORTC |= (1<<0);  //turn on PC0 (Vreg1)
 
-	output(led_port_direction, led_pin); 	// RGB led init
+	// RGB led init
+	output(led_port_direction, led_pin); 	
 
 	DDRB &= ~(1<<1); //tension switch as input PB1
 	DDRD &= ~(1<<4); //gripper/control switch as input PD4
@@ -260,33 +278,30 @@ uint8_t i2c_write_accell(uint8_t chip_address,uint8_t reg_address,uint8_t data) 
 	// user application code then checks TWSR reg if START condition transmission successful
 	while(!(TWCR &(1<<TWINT)));
 
-	// user application code checks TWSR reg if START condition transmission successful, see datasheet page 183
+	// Checks TWSR reg if START condition transmission successful, see datasheet page 183
 	if((TWSR & 0xF8) != 0x08)
 	{
 		printf("TWI START condition transmission error\n\r");
-		// ToDo: add error handling code
+		// ToDo: add error handling code, not in original code
 	}
 
-	// Load write address of slave in to TWDR, 
-	
-	// uint8_t SLA_W=0b11010000;
-	uint8_t SLA_W=chip_address;
-	TWDR=SLA_W;
+	// Load write address of slave into TWDR
+	TWDR = chip_address;
 
 	// clear TWINT bit in TWCR to start transmission of address
-	TWCR=(1<<TWINT)|(1<<TWEN);
+	TWCR = (1<<TWINT)|(1<<TWEN);
 
 	// wait for TWINT flag to raise, indicating transmission and ack/nack receive
 	while(!(TWCR & (1<<TWINT)));
 
-	// check TWSR reg to see if ack received
+	// Check TWSR reg to if ack received
 	if((TWSR & 0xF8) != 0x18)	
 	printf("first ack problem 0x%x \n\r",(TWSR & 0xF8));
 	// printf("ack recieved OK 0x%x \n\r",(TWSR & 0xF8));
 
 
-	// send data, in this case an address
-	TWDR=reg_address;//0x6b;// accell x value msb's
+	// Send data, in this case an address
+	TWDR = reg_address;//0x6b;// accell x value msb's
 	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
 
 	while(!(TWCR&(1<<TWINT)));//wait for data to tx
@@ -297,7 +312,7 @@ uint8_t i2c_write_accell(uint8_t chip_address,uint8_t reg_address,uint8_t data) 
 	// printf("second ack received OK is 0x%x\n\r",(TWSR & 0xF8));
 
 	//send data
-	TWDR=data;//0x00;// accell x value msb's
+	TWDR = data; //0x00;// accell x value msb's
 	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
 
 	while(!(TWCR&(1<<TWINT)));//wait for data to tx
@@ -425,14 +440,32 @@ int main(void)
 	sei();	
 
 	while(1)
+	{
+		switch(system_state & 0x0F) {
+
+			case TEST :				
+				_delay_ms(500);
+	            setLED(50,50,50);
+	            _delay_ms(500);
+	            setLED(0,0,0);		
+			break;
+
+			case EXPERIMENT :
+
+				switch(system_state & 0xF0) {
+
+					case SETUP :
+					break;
+
+					case FLIP :
+					break;
+				}
+			break;
+		}
+	}
+
+	while(0)
 	{	
-			_delay_ms(500);
-
-            setLED(50,50,50);
-
-            _delay_ms(500);
-
-            setLED(0,0,0);
 			
 //			printf("We can print without i2c");
 
@@ -511,30 +544,22 @@ void master_input_update()
 	input.IR2_m=get_IR_U5();
 	//	printf("%d \n\r",input.IR2_m);
 
-	//get accel data from master side
-	get_IMU_measurement();
-	
+	// Get accel data from master side
+	get_IMU_measurement();	
 }
 
 void get_IMU_measurement(void)
 {	
-	//i2c_write_accell( 0b11010010,0x1c,0b11100000);
-
 	// Measurement data is stored in two’s complement and Little Endian format. 
 	// Measurement range of each axis is from -32752 ~ 32752 decimal in 16-bit output.
-	// 0x8010 represents -32752, 0x7ff0 is 32752
+	// 0x8010 is -32752, 0x7ff0 is 32752
 
-	/* 0x6b address see MPU9150 (really old accel) something to do with setting the configuration. Not sure if this is the right address. 
-	*/
-
-	i2c_write_accell(IMU_ADDRESS,PWR_MGMT_1,0); //check addresses/values ??? // ??BH?? not sure about this 0x6b address, could not find it in old/new chip datasheet
-	// ??BH?? registers to be set seem to be USER_CTRL, should be set to all 0
+	i2c_write_accell(IMU_ADDRESS,PWR_MGMT_1,0); 
 	int x=((i2c_read_accell( IMU_ADDRESS, ACCEL_XOUT_H)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, ACCEL_XOUT_L)&0x00ff);
 	int y=((i2c_read_accell( IMU_ADDRESS, ACCEL_YOUT_H)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, ACCEL_YOUT_L)&0x00ff);			
 	int z=((i2c_read_accell( IMU_ADDRESS, ACCEL_ZOUT_H)<<8)&0xff00)+(i2c_read_accell( IMU_ADDRESS, ACCEL_ZOUT_L)&0x00ff);
 
-	//convert from 2's complement ???
-	// convert two's complement for negative values, 0x8010 = -32752 is the lowest 
+	// Convert two's complement for negative values, 0x8010 = -32752 is the lowest 
     if(x>0x8000)
     {
         x=x ^ 0xffff;
@@ -551,7 +576,7 @@ void get_IMU_measurement(void)
         z=-z-1; 
     }
 
-    // update values input to MCU from IMU
+    // Update values input to MCU from IMU
 	input.accell_m[0]=x;
 	input.accell_m[1]=y;
 	input.accell_m[2]=z;
