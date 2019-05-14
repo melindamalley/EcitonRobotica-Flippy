@@ -18,10 +18,9 @@
 #define MYUBRR (((((FOSC * 10) / (16L * BAUD)) + 5) / 10)) // used to set the UBRR high and low registers, Usart Baud Rate registers, not sure about the formulat though, see datasheet page 146
 
 ///////// IMU information
-
-#define accell_slave_addrs  0b11010000 // IMU on slave board,  [7bit i2c address from chip datasheet,0] = 0xd0
-#define	accell_master_addrs 0b11010010 // IMU on master board, [7bit i2c address from chip datasheet,0] = 0xd2
-#define IMU_ADDRESS (accell_slave_addrs | (MASTER<<1)) // allows for unifying master/slave code
+#define accell_slave_addrs  0b11010000 // IMU address on slave board,  [7bit i2c address from chip datasheet,0] = 0xd0
+#define	accell_master_addrs 0b11010010 // IMU address on master board, [7bit i2c address from chip datasheet,0] = 0xd2
+#define IMU_ADDRESS (MASTER ? accell_master_addrs : accell_slave_addrs)  // (Condition? true_value: false_value), for unifying master/slave code
 
 // IMU chip registers, 0x3B to 0x40 for MPU-9250, 0x2D to 0x32 for replaced chip (first order) ICM-20948
 #define ACCEL_XOUT_H	0x3B //0x2D //for ICM-20948
