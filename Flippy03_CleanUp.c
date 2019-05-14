@@ -41,8 +41,7 @@
 #define SETUP	0x0F
 #define FLIP	0x1F
 
-// 
-#define atmega_slave 0xf0 // // address of the slave board processor, to be renamed to something more meaningful e.g. SLAVE_MCU_ADDRESS
+#define atmega_slave 0xf0 // // address of the slave board processor, to be renamed to something more meaningful e.g. MCU_slave_address
 #define led_wrt_cmd 0x3A // led driver write command
 
 //////////////////////////////////////
@@ -53,6 +52,8 @@
 #define set(port,pin) (port |= pin) // set port pin
 #define clear(port,pin) (port &= (~pin)) // clear port pin
 //////////////////////////////////////
+
+#define get_switch_input(port, pin) ((port & (1<<pin)) >> pin) //bit shift function to get input from switches
 
 ////////////////
 //SETUP AND DEFINE PINS
@@ -67,7 +68,32 @@
 #define led_port PORTD
 #define led_pin (1 << 7)
 
-//
+//Switch S4 PD4
+#define S4_port_direction DDRD
+#define S4_port PIND //(((PIND & (1<<4)) >> 4))
+#define S4_pin 4
+
+//Switch "Power" PD3
+#define S3_port_direction DDRD
+#define S3_port PIND 
+#define S3_pin 3
+
+//Switch "Tension"
+#define STension_port_direction DDRB
+#define STension_port PINB 
+#define STension_pin 1
+
+//Motor M5 direction is PB6 and speed/PWM is OCR0B (PD5)
+#define M5_pin (1<<6)
+#define M5_port_dir DDRB
+#define M5_port PORTB
+#define M5_PWM OCR0B
+
+//Motor M3 direction is PB7 and speed/PWM is OCR0A (PD6)
+#define M3_pin (1<<7)
+#define M3_port_dir DDRB
+#define M3_port PORTB
+#define M3_PWM OCR0A
 
 ///////////////
 
@@ -79,9 +105,10 @@
 
 //Define helper functions
 void setLED(unsigned char red, unsigned char green, unsigned char blue);
+void set_M5(unsigned char dir, unsigned char speed);
 int switch_power(void);
 int switch_tension1(void);
-int switch_dock(void);
+int switch_S4(void);
 int get_bend(void);
 int get_IR_Flex_U1513(void);
 int get_IR_U5(void);
@@ -102,8 +129,8 @@ struct inputs{
 	uint8_t	switch_power;
  	uint8_t switch_tension_m;
 	uint8_t switch_tension_s;
-	uint8_t switch_dock_m;
-	uint8_t switch_dock_s;
+	uint8_t switch_S4_m;
+	uint8_t switch_S4_s;
 	int bend_s;
 	int bend_m;
 	int IR1_m; 
@@ -113,7 +140,8 @@ struct inputs{
  
 };
 
-// Robot Outputs
+//Define Robot Outputs
+
 struct outputs{
 	uint8_t speed_bend_m3_m;
 	uint8_t speed_bend_m3_s;
@@ -176,7 +204,11 @@ void ioinit (void) {
     */
     fdev_setup_stream(&mystdout, uart_putchar, NULL, _FDEV_SETUP_WRITE);
     stdout = &mystdout;
+
 }
+
+
+/////Setup everything
 
 void init(void)
 {
@@ -192,12 +224,9 @@ void init(void)
 	ioinit(); 
 
 	sleep_mode=0;
-
 	//power on 
 	output(vreg1_port_direction, vreg1_pin);
 	set(vreg1_port, vreg1_pin); //turn on PC0 (vreg1)
-	//DDRC |= (1<<0); //output PC0
-	//PORTC |= (1<<0);  //turn on PC0 (Vreg1)
 
 	// RGB led init
 	output(led_port_direction, led_pin); 	
@@ -262,7 +291,7 @@ ISR(TWI_vect)
 	// TWINT bit = 1 to clear the TWINT flag
 	TWCR = (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
 }	
-
+/////////////IMU FUNCTIONS
 // ??BH?? function to be renamed in future revisions, i.e. i2c_imu_write 
 uint8_t i2c_write_accell(uint8_t chip_address,uint8_t reg_address,uint8_t data) //??? Double check function not missing anything?
 {
@@ -431,7 +460,264 @@ uint8_t i2c_read_accell(uint8_t chip_address, uint8_t reg_address) //??? Double 
 	//while(!(TWCR & (1<<TWINT)));
 	//_delay_ms(10);
 	return TWDR;
+
 }
+
+///////////master sends commands to slave
+int i2c_send()
+{
+	cli();	
+	
+	//start twi transmission
+	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
+
+	//wait for TWCR flag to set indication start is transmitted
+	while(!(TWCR &(1<<TWINT)));
+
+	//check to see if start is an error or not
+	if((TWSR & 0xF8) != 0x08){
+	printf("start of i2c read error\n\r");
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+
+	//Load read address of slave in to TWDR, 
+	TWDR=atmega_slave ;	 
+
+	//start transmission
+	TWCR=(1<<TWINT)|(1<<TWEN);
+
+	//wait for TWINT flag to se, indicating transmission and ack/nack receive
+	while(!(TWCR & (1<<TWINT)));
+
+	//check to see if ack received
+	if((TWSR & 0xF8) != 0x18)	{
+	printf("1 ack problem 0x%x \n\r",(TWSR & 0xF8));
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+	
+
+	TWDR=output.speed_bend_m3_s;
+
+
+	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
+
+	while(!(TWCR&(1<<TWINT)));//wait for data to tx
+
+	//check for data ack	
+	if((TWSR & 0xF8) != 0x28)	{
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+
+	TWDR=output.speed_dock_m5_s;
+
+	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
+
+	while(!(TWCR&(1<<TWINT)));//wait for data to tx
+
+	//check for data ack	
+	if((TWSR & 0xF8) != 0x28)	{
+	printf("3 ack problem is 0x%x\n\r",(TWSR & 0xF8));
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+
+	TWDR=output.direction_dock_m5_s;
+
+	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
+
+	while(!(TWCR&(1<<TWINT)));//wait for data to tx
+
+	//check for data ack	
+	if((TWSR & 0xF8) != 0x28)	{
+	printf("4 ack problem is 0x%x\n\r",(TWSR & 0xF8));
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+	TWDR=output.direction_bend_m3_s;
+
+	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
+
+	while(!(TWCR&(1<<TWINT)));//wait for data to tx
+
+	//check for data ack	
+	if((TWSR & 0xF8) != 0x28)	{
+	printf("5 ack problem is 0x%x\n\r",(TWSR & 0xF8));
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+	TWDR=output.led_s[0];
+
+	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
+
+	while(!(TWCR&(1<<TWINT)));//wait for data to tx
+
+	//check for data ack	
+	if((TWSR & 0xF8) != 0x28)	{
+	printf("5 ack problem is 0x%x\n\r",(TWSR & 0xF8));
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+	TWDR=output.led_s[1];
+
+	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
+
+	while(!(TWCR&(1<<TWINT)));//wait for data to tx
+
+	//check for data ack	
+	if((TWSR & 0xF8) != 0x28)	{
+	printf("5 ack problem is 0x%x\n\r",(TWSR & 0xF8));
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+	TWDR=output.led_s[2];
+
+	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
+
+	while(!(TWCR&(1<<TWINT)));//wait for data to tx
+
+	//check for data ack	
+	if((TWSR & 0xF8) != 0x28)	{
+	printf("5 ack problem is 0x%x\n\r",(TWSR & 0xF8));
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+
+	TWDR=sleep_mode;
+
+	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
+
+	while(!(TWCR&(1<<TWINT)));//wait for data to tx
+
+	//check for data ack	
+	if((TWSR & 0xF8) != 0x28)	{
+	printf("5 ack problem is 0x%x\n\r",(TWSR & 0xF8));
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+
+	TWCR = (1<<TWINT)|(1<<TWSTO);
+
+	return(0);
+}
+
+int i2c_read()//read all inputs from slave via i2c
+{
+	cli();
+	
+	uint8_t data_counter=0;
+	uint8_t temp_var=0;
+	//start twi transmission
+	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
+
+	//wait for TWCR flag to set indication start is transmitted
+	while(!(TWCR &(1<<TWINT)));
+
+	//check to see if start is an error or not
+	if((TWSR & 0xF8) != 0x08){
+	printf("start of i2c read error\n\r");
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+
+	//Load read addres of slave in to TWDR, 
+	TWDR=atmega_slave | 1;//	 SLA_W=0b11010001;
+
+	//start transmission
+	TWCR=(1<<TWINT)|(1<<TWEN);
+
+	//wait for TWINT flag to se, indicating transmission and ack/nack receive
+	while(!(TWCR & (1<<TWINT)));
+
+	//check to see if ack received
+	if((TWSR & 0xF8) != 0x40)	{
+	printf("first ack problem 0x%x \n\r",(TWSR & 0xF8));
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+	sei();
+	return (-1);
+	}
+//	printf("third ack recieved OK 0x%x \n\r",(TWSR & 0xF8));
+	TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWEA);
+	
+	while(data_counter<4)
+	{
+
+		if(data_counter<3)
+		{
+		TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWEA);
+		}
+		else
+		{
+			TWCR = (1<<TWINT)|(1<<TWEN);
+		}
+	//wait for TWINT flag to se, indicating transmission and ack/nack receive
+		while(!(TWCR & (1<<TWINT)));
+
+		//check to see if ack received
+		if(((TWSR & 0xF8) != 0x50)&&(data_counter!=3))	{
+		printf("data %d ack problem 0x%x \n\r",data_counter,(TWSR & 0xF8));
+		TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+		sei();
+		return (-1);
+		}
+		else if(((TWSR & 0xF8) != 0x58)&&(data_counter>=3))	{
+		printf("data %d ack problem 0x%x \n\r",data_counter,(TWSR & 0xF8));
+		TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+		sei();
+		return (-1);
+		}
+	//	printf("%d ack recieved  0x%x \n\r",data_counter,(TWSR & 0xF8));
+	//	printf("data rx is 0x%x \n\r",TWDR);
+		if(data_counter==0)
+		{
+			input.switch_tension_s=TWDR;
+		}
+		else if(data_counter==1)
+		{
+			input.switch_S4_s=TWDR;
+		}
+		else if(data_counter==2)
+		{
+			temp_var=TWDR;
+		
+		}else if(data_counter>=3)
+		{
+			input.bend_s=(TWDR<<8)+temp_var;
+		}
+		 
+			data_counter++;
+
+	}
+
+	TWCR = (1<<TWSTO)|(1<<TWINT);
+
+	if(data_counter==4)
+	{
+		
+		sei();
+		return 0;
+	
+	}
+	else
+	{
+	sei();
+	return -1;
+	}
+}
+
 
 // ??BH?? insert switch-case structure for debug vs normal operation code
 int main(void)
@@ -484,35 +770,8 @@ int main(void)
 
 void master_output_update() //motor updates
 {
-
-	if(output.direction_dock_m5_m==0)
-	{
-		DDRB |= (1<<6); //set direction dock motor (M5) PB6 output
-		PORTB &= ~(1<<6); //set dock motor (M5) PB6 low - (in2/in4 on hbridge)
-		OCR0B = output.speed_dock_m5_m; //sets PWM for OCR0B (PD5) - in1/in3 on hbridge - motor goes forward on high portion
-
-	}
-	else
-	{
-		DDRB |= (1<<6); //set direction dock motor (M5) PB6 output
-		PORTB |= (1<<6); //set dock motor (M5) PB6 high - (in2 and in4 on hbridge)
-		OCR0B = 255-output.speed_dock_m5_m; //sets PWM for OCR0B (PD5) - in1/in3 on hbridge - motor goes backward on low portion
-	}
-
-
-	if(output.direction_bend_m3_m==0)
-	{
-		DDRB |= (1<<7); //set direction bend motor (M3) PB7 output
-		PORTB &= ~(1<<7); //set bend motor (M3) PB7 low - (in2/in4 on hbridge)
-		OCR0A = output.speed_bend_m3_m; //sets PWM for OCR0A (PD6) - in1/in3 on hbridge - motor goes forward on high portion
-
-	}
-	else
-	{
-		DDRB |= (1<<7); //set direction bend motor (M3) PB7 output
-		PORTB |= (1<<7); //set bend motor (M3) PB7 high - (in2/in4 on hbridge)
-		OCR0A = 255-output.speed_bend_m3_m; //sets PWM for OCR0A (PD6) - in1/in3 on hbridge - motor goes backward on low portion
-	}
+	set_M5(output.direction_dock_m5_m, output.speed_dock_m5_m);
+	set_M3(output.direction_bend_m3_m, output.speed_bend_m3_m);
 
 	if (output.vibration_m==1)
 	{	
@@ -528,13 +787,13 @@ void master_output_update() //motor updates
 
 void master_input_update()  
 {
-	//	input.switch_dock_m=switch_dock();
-	//	input.switch_tension_m=switch_tension1();
-	//	input.bend_m=get_bend();
-	input.IR1_m=get_IR_Flex_U1513();
-	//	printf("%d \n\r",input.IR1_m);
-	input.IR2_m=get_IR_U5();
-	//	printf("%d \n\r",input.IR2_m);
+	input.switch_S4_m=get_switch_input(S4_port, S4_pin); //((PIND & (1<<4)) >> 4);
+	input.switch_tension_m=get_switch_input(STension_port, STension_pin);
+//	input.bend_m=get_bend();
+//	input.IR1_m=get_IR_Flex_U1513();
+//	printf("%d \n\r",input.IR1_m);
+//	input.IR2_m=get_IR_U5();
+//	printf("%d \n\r",input.IR2_m);
 
 	// Get accel data from master side
 	get_IMU_measurement();	
@@ -576,18 +835,7 @@ void get_IMU_measurement(void)
 
 ///////////////////INPUT READ FUNCTIONS
 
-int switch_tension1(void) //Rewrite more efficiently? e.g. as a macro?
-{
-
-	if((PINB & (1<<1))!=0)//tension switch connected to PB1, high when connected, so when not low, switch is not connected. 
-	{
-		return(0);
-	}
-	else
-	{
-		return(1);
-	}
-}
+//NOTE THAT MACRO FOR SWITCH INPUT NOT CURRENTLY WORKING FOR POWER SWITCH????
 
 int switch_power(void) //Rewrite more efficiently? e.g. as a macro?
 {
@@ -669,4 +917,28 @@ void setLED(unsigned char red, unsigned char green, unsigned char blue)
 	}
 
 	_delay_us(80);//End of Sequence
+}
+
+void set_M5(unsigned char dir, unsigned char speed){
+//	output(M5_port_dir, M5_pin); ??? Do we need to set the outputs again after init? Seems to work w/o and may be unnecessary
+	if (dir==0){ //Note 0 is positive
+		clear(M5_port, M5_pin); //set dock motor (M5) PB6 low - (in2/in4 on hbridge)
+		M5_PWM = speed; //sets PWM for OCR0B (PD5) - in1/in3 on hbridge - motor goes forward on high portion
+	}
+	else {
+		set(M5_port, M5_pin);
+		M5_PWM = 255-speed; //sets PWM for OCR0B (PD5) - in1/in3 on hbridge - motor goes backward on low portion
+	}
+}
+
+void set_M3(unsigned char dir, unsigned char speed){
+//	output(M3_port_dir, M3_pin); ??? Do we need to set the outputs again after init? Seems to work w/o and may be unnecessary
+	if (dir==0){ //Note 0 is positive
+		clear(M3_port, M3_pin); //set dock motor (M5) PB6 low - (in2/in4 on hbridge)
+		M3_PWM = speed; //sets PWM for OCR0B (PD5) - in1/in3 on hbridge - motor goes forward on high portion
+	}
+	else {
+		set(M3_port, M3_pin);
+		M3_PWM = 255-speed; //sets PWM for OCR0B (PD5) - in1/in3 on hbridge - motor goes backward on low portion
+	}
 }
