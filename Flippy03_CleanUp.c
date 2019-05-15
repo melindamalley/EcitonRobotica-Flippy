@@ -758,9 +758,10 @@ int main(void)
 	uint8_t count = 0;
 	unsigned char toggle = 0;
 
-	while (1)
-	{
-		//// This state is for calibrating and testing robot and electronics
+	while (1){
+		//////////////////////////////////////////////////////////////////
+		// TEST MODE
+		// This state is for calibrating and testing electronics, everything essentially "master mode"
 		if (TESTMODE)
 		{
 			//			_delay_ms(500);
@@ -791,176 +792,36 @@ int main(void)
 			//printf("IR %d \n\r", input.IR1_m); //for bend sensor reading only - note change function name to reflect.
 			master_output_update();
 			master_input_update();
-			_delay_ms(20);
 		}
+		//////////////////////////////////////////////////////////////////
 
+		//////////////////////////////////////////////////////////////////
+		// MASTER EXPERIMENT MODE
 		////This is the state for running experiments through the master board
 		else if(MASTER){
-//			setLED(0,0,0);
-//			_delay_ms(100);
+			//setLED(0,0,0);
+			//_delay_ms(100);
 			switch (system_state){
-
-			case SETUP: //Experiment Set-up and Reset (in case the robot gets stuck)
-//					setLED(0,0,0);
-//					_delay_ms(100);
-
-				switch (state)
-				{
-				case 0: //do nothing and unwind motors
-					output.led_m[1] = 20;
-					output.led_s[1] = 20;
-					output.speed_bend_m3_m = 0;
-					output.speed_bend_m3_s = 0;
-					output.speed_dock_m5_m = 0;
-					output.speed_dock_m5_s = 0;
-
-					if ((input.switch_S4_m == 0) & (input.switch_S4_s == 0))
-					{
-						state = 1;
-						count = 0;
-						toggle = 0;
-						output.led_m[0] = 0;
-						output.led_s[0] = 0;
-						output.led_m[1] = 0;
-						output.led_s[1] = 0;
-					}
-					else if (input.switch_S4_m == 0)
-					{
-						output.led_m[0] = 30;
-						output.led_m[1] = 0;
-						output.direction_bend_m3_m = 1;
-						output.speed_bend_m3_m = unwindspd;
-					}
-					else if (input.switch_S4_s == 0)
-					{
-						output.led_s[0] = 30;
-						output.led_s[1] = 0;
-						output.direction_bend_m3_s = 1;
-						output.speed_bend_m3_s = unwindspd;
-					}
-					break;
-/*				case 1: //rewind motors
-					output.direction_bend_m3_m = 0;
-					output.direction_bend_m3_s = 0;
-					if ((input.switch_S4_m == 0) & (input.switch_S4_s == 0))
-					{
-						toggle = 1;
-					}
-					if (toggle == 1)
-					{
-						if (input.switch_tension_s == 1)
-						{
-							output.speed_bend_m3_m = 60;
-						}
-						else
-						{
-							output.speed_bend_m3_m = 0;
-						}
-						if (input.switch_tension_m == 1)
-						{
-							output.speed_bend_m3_s = 60;
-						}
-						else
-						{
-							output.speed_bend_m3_s = 0;
-						}
-					}
-					if ((input.switch_tension_s == 0) & (input.switch_tension_m == 0) & (toggle = 1))
-					{
-						if (input.switch_S4_m == 1)
-						{
-							state = 2;
-							toggle = 0;
-							_delay_ms(2000);
-							break;
-						}
-					}
-					break;
-				case 2: //attach or detach slave side
-					output.led_m[0] = 20;
-					if ((input.switch_S4_m == 1) && (input.switch_S4_s == 1))
-					{
-						output.speed_dock_m5_s = 0;
-						output.speed_dock_m5_m = 0;
-						output.led_s[0] = 0;
-						output.led_s[1] = 0;
-						output.led_m[0] = 0;
-						state = 3;
-						_delay_ms(2000);
-						break;
-					}
-					else if (input.switch_S4_m == 1)
-					{
-						output.led_s[0] = 20;
-						output.led_s[1] = 0;
-						output.direction_dock_m5_s = 0;
-						output.speed_dock_m5_s = 0.7 * gripperspd;
-					}
-					else if (input.switch_S4_s == 1)
-					{
-						output.led_s[0] = 0;
-						output.led_s[1] = 20;
-						output.direction_dock_m5_s = 1;
-						output.speed_dock_m5_s = gripperspd;
-					}
-					else
-					{
-						output.led_s[0] = 0;
-						output.led_s[1] = 0;
-						output.speed_dock_m5_s = 0;
-					}
-					break;
-				case 3: //attach or detach master side
-					output.led_s[0] = 20;
-					if ((input.switch_S4_m == 1) && (input.switch_S4_s == 1))
-					{
-						output.speed_dock_m5_s = 0;
-						output.speed_dock_m5_m = 0;
-						output.led_m[0] = 0;
-						output.led_m[1] = 0;
-						output.led_s[0] = 0;
-						state = 0;
-						_delay_ms(9000);
-						break;
-					}
-					else if (input.switch_S4_m == 1)
-					{
-						output.led_m[0] = 20;
-						output.led_m[1] = 0;
-						output.direction_dock_m5_m = 0;
-						output.speed_dock_m5_m = 0.7 * gripperspd;
-					}
-					else if (input.switch_S4_s == 1)
-					{
-						output.led_m[0] = 0;
-						output.led_m[1] = 20;
-						output.direction_dock_m5_m = 1;
-						output.speed_dock_m5_m = gripperspd;
-					}
-					else
-					{
-						output.led_m[0] = 0;
-						output.led_m[1] = 0;
-						output.speed_dock_m5_m = 0;
-					}
-					break; */
-				}
-
-				master_output_update();
-				master_input_update();
-				i2c_send();
-				i2c_read();
-				break;
-
-			case FLIP:
+				case SETUP: //Experiment Set-up and Reset (in case the robot gets stuck)
+	//					setLED(0,0,0);
+	//					_delay_ms(100);
+				case FLIP: //Normal locomotion
 				break;
 			}
 		}
+		//////////////////////////////////////////////////////////////////
 
-		//THIS DELAY IS NECESSARY FOR ALL MODES OF THE ROBOT
+		//////////////////////////////////////////////////////////////////
+		// SLAVE MODE
+		////The slave board just lupdates outputs and sends sensor values.
+		else{
+
+		}
+		//////////////////////////////////////////////////////////////////
+		//THIS DELAY IS NECESSARY FOR ALL MODES OF THE ROBOT (actually may not be necessary for slave???)
 		_delay_ms(20); //you can adjust this delay.. eventually if too small it may cause problems
-	}
-}
+	} //end of while
+} //end of main
 
 void master_output_update() //motor updates
 {
