@@ -46,11 +46,11 @@ void flipbend(char side, char p);
 double get_accel_diff(void);
 
 struct inputs{
-	uint8_t	switch_power;
- 	uint8_t switch_tension_m; //rename
-	uint8_t switch_tension_s; //rename
-	uint8_t switch_dock_m;
-	uint8_t switch_dock_s;
+	unsigned char switch_power;
+	unsigned char switch_tension_m; //rename
+	unsigned char switch_tension_s; //rename
+	unsigned char switch_dock_m;
+	unsigned char switch_dock_s;
 	int bend_s;
 	int bend_m;
 	int IR1_m;
@@ -71,7 +71,7 @@ struct outputs{
 	uint8_t direction_bend_m3_s;
 	uint8_t led_m[3];
 	uint8_t led_s[3];
-	int vibration_m;
+	uint8_t vibration_m;
 
 };
 
