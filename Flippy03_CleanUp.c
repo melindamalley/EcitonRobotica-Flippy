@@ -12,7 +12,7 @@
 #include <avr/interrupt.h>
 
 #define MASTER 1   // 1 for Master, 0 for Slave
-#define TESTMODE 1 // 1 for running tests, 0 for experiments
+#define PCBTESTMODE 1 // 1 for running tests, 0 for experiments
 
 #define FOSC 8000000					   // oscillator clock frequency, page 164 datasheet, internal RC oscillator clock source selected by fuse bits
 #define BAUD 9600						   // baud rate desired
@@ -88,12 +88,18 @@
 #define M5_pin (1 << 6)
 #define M5_port_dir DDRB
 #define M5_port PORTB
+
+#define M5_PWM_port_dir DDRD
+#define M5_PWM_pin (1 << 5)
 #define M5_PWM OCR0B
 
 //Motor M3 direction is PB7 and speed/PWM is OCR0A (PD6)
 #define M3_pin (1 << 7)
 #define M3_port_dir DDRB
 #define M3_port PORTB
+
+#define M3_PWM_port_dir DDRD
+#define M3_PWM_pin (1 << 6)
 #define M3_PWM OCR0A
 
 //Motor M4 - Vibration motor is PB0
@@ -234,20 +240,25 @@ void init(void)
 	output(vreg1_port_direction, vreg1_pin);
 	set(vreg1_port, vreg1_pin); //turn on PC0 (vreg1)
 
-	// RGB led init
-	output(led_port_direction, led_pin);
+////////////
+	// initialize outputs
+	output(led_port_direction, led_pin); // RGB led init
+	output(M3_port_dir, M3_pin); //output M3 direction control
+	output(M5_port_dir, M5_pin); //output M5 direction control
+	output(M3_PWM_port_dir, M3_PWM_pin); //output M4 PWM
+	output(M5_PWM_port_dir, M5_PWM_pin); //output M5 PWM
+	output(M4_port_dir, M4_pin) //output M4 vibration motor
 
-	DDRB &= ~(1 << 1); //tension switch as input PB1
-	DDRD &= ~(1 << 4); //gripper/control switch as input PD4
-	DDRD &= ~(1 << 3); //power switch as input PD3
+///////////
+	//initialize inputs
+	input(STension_port_direction, STension_pin); //tension switch as input PB1
+	input(S4_port_direction, S4_pin); //gripper/control switch as input PD4
+	input(S3_port_direction, S3_pin); //power switch as input PD3
 
-	DDRB |= (1 << 6);										//Hbridge 2-1 output PB6
-	DDRB |= (1 << 7);										//Hbridge 1-1 output PB7
 	TCCR0A |= (1 << COM0A1) | (1 << COM0B1) | (1 << WGM00); //Timer counter init (for pwm/motor control)
 	TCCR0B = 0x03;											//prescaler set to 0
 	OCR0B = 0x00;											//start with motor off (PD5)
 	OCR0A = 0x00;											//start with motor off (PD6)
-	DDRB |= (1 << 0);										//vibration motor output PB0
 
 	DDRC &= ~(1 << 1); //IR2 or flex sensor as input (PC1)
 	DDRC &= ~(1 << 2); //IR1 as input (PC2)
@@ -264,20 +275,6 @@ void init(void)
 	EICRA = 1 << ISC01 | 1 << ISC00; // External Interrupt Control Register A (EICRA), ISCxx Interrupt Sense Control bits, INT0 set to trigger on rising edge
 
 	TWBR = 0x04; //twi bit rate set
-
-	//dock motor off
-	DDRB |= (1 << 6);
-	PORTB &= ~(1 << 6);
-	DDRD |= (1 << 6);
-	PORTD &= ~(1 << 6);
-	OCR0B = 0;
-
-	//bend motor off
-	DDRB |= (1 << 7);
-	PORTB &= ~(1 << 7);
-	DDRD |= (1 << 5);
-	PORTD &= ~(1 << 5);
-	OCR0A = 0;
 
 	power_state = 1;
 	sleep_mode = 1;
@@ -296,8 +293,11 @@ ISR(TWI_vect)
 	// TWINT bit = 1 to clear the TWINT flag
 	TWCR = (1 << TWEA) | (1 << TWEN) | (1 << TWINT) | (1 << TWSTO);
 }
-/////////////IMU FUNCTIONS
-// ??BH?? function to be renamed in future revisions, i.e. i2c_imu_write
+
+//////////////////////////////////////////////////////////////////
+//IMU FUNCTIONS
+
+// This function basically initializes the IMU
 uint8_t i2c_write_accell(uint8_t chip_address, uint8_t reg_address, uint8_t data) //??? Double check function not missing anything?
 {
 	// start TWI transmission
@@ -365,7 +365,7 @@ uint8_t i2c_write_accell(uint8_t chip_address, uint8_t reg_address, uint8_t data
 	return (0);
 }
 
-// ??BH?? function to be renamed in future revisions, i.e. i2c_imu_read
+// This reads the data from the IMU
 uint8_t i2c_read_accell(uint8_t chip_address, uint8_t reg_address) //??? Double check function not missing anything?
 {
 
@@ -470,9 +470,12 @@ uint8_t i2c_read_accell(uint8_t chip_address, uint8_t reg_address) //??? Double 
 	//_delay_ms(10);
 	return TWDR;
 }
+//////////////////////////////////////////////////////////////////
 
-///////////master sends commands to slave
-int i2c_send()
+//////////////////////////////////////////////////////////////////
+//Between Board Communication Functions 
+
+int i2c_send() //master sends commands to slave
 {
 	cli();
 
@@ -748,8 +751,8 @@ int i2c_read() //read all inputs from slave via i2c
 		return -1;
 	}
 }
+//////////////////////////////////////////////////////////////////
 
-// ??BH?? insert switch-case structure for debug vs normal operation code
 int main(void)
 {
 	init();
@@ -759,11 +762,10 @@ int main(void)
 	unsigned char toggle = 0;
 
 	while (1){
-		//////////////////////////////////////////////////////////////////
-		// TEST MODE
-		// This state is for calibrating and testing electronics, everything essentially "master mode"
-		if (TESTMODE)
-		{
+//////////////////////////////////////////////////////////////////
+	// TEST MODE
+	// This state is for calibrating and testing electronics, everything essentially "master mode"
+		if (PCBTESTMODE){
 			//			_delay_ms(500);
 			//	        setLED(50,50,50);
 			//	        _delay_ms(500);
@@ -771,11 +773,11 @@ int main(void)
 			output.speed_dock_m5_m = 0;
 			if (input.switch_S4_m == 0){
 				setLED(50,50,50);
-				output.speed_dock_m5_m = 125;
-				output.direction_dock_m5_m=0;
+				output.speed_bend_m3_m = 125;
+				output.direction_bend_m3_m=0;
 			}
 			else{
-				output.speed_dock_m5_m = 0;
+				output.speed_bend_m3_m = 0;
 				setLED(0,0,0);
 			}
 			//printf("%#08X \n\r", ((EXPERIMENT&SETUP)& 0x0F));
@@ -793,11 +795,11 @@ int main(void)
 			master_output_update();
 			master_input_update();
 		}
-		//////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////
 
-		//////////////////////////////////////////////////////////////////
-		// MASTER EXPERIMENT MODE
-		////This is the state for running experiments through the master board
+//////////////////////////////////////////////////////////////////
+	// MASTER EXPERIMENT MODE
+	// This is the state for running experiments through the master board
 		else if(MASTER){
 			//setLED(0,0,0);
 			//_delay_ms(100);
@@ -809,15 +811,15 @@ int main(void)
 				break;
 			}
 		}
-		//////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////
 
-		//////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////
 		// SLAVE MODE
-		////The slave board just lupdates outputs and sends sensor values.
+		// The slave board just lupdates outputs and sends sensor values.
 		else{
 
 		}
-		//////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////
 		//THIS DELAY IS NECESSARY FOR ALL MODES OF THE ROBOT (actually may not be necessary for slave???)
 		_delay_ms(20); //you can adjust this delay.. eventually if too small it may cause problems
 	} //end of while
@@ -854,6 +856,8 @@ void master_input_update()
 	get_IMU_measurement();
 }
 
+///////////////////INPUT READ FUNCTIONS
+
 void get_IMU_measurement(void)
 {
 	// Measurement data is stored in two’s complement and Little Endian format.
@@ -888,11 +892,8 @@ void get_IMU_measurement(void)
 	input.accell_m[2] = z;
 }
 
-///////////////////INPUT READ FUNCTIONS
-
+int switch_power(void) //Rewrite more efficiently? e.g. as a macro? 
 //NOTE THAT MACRO FOR SWITCH INPUT NOT CURRENTLY WORKING FOR POWER SWITCH????
-
-int switch_power(void) //Rewrite more efficiently? e.g. as a macro?
 {
 
 	if ((PIND & (1 << 3)) != 0) //power switch connected to PD3, low when connected, so when not low, switch is not connected.
