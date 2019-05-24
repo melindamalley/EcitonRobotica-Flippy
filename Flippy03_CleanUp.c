@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <avr/interrupt.h>
 
-#define MASTER 1   // 1 for Master, 0 for Slave
+#define MASTER 0   // 1 for Master, 0 for Slave
 #define PCBTESTMODE 1 // 1 for running tests, 0 for experiments
 
 #define FOSC 8000000					   // oscillator clock frequency, page 164 datasheet, internal RC oscillator clock source selected by fuse bits
@@ -117,6 +117,7 @@
 
 //Define helper functions
 void setLED(unsigned char red, unsigned char green, unsigned char blue);
+void set_M3(unsigned char dir, unsigned char speed);
 void set_M5(unsigned char dir, unsigned char speed);
 int switch_power(void);
 int switch_tension1(void);
@@ -247,7 +248,7 @@ void init(void)
 	output(M5_port_dir, M5_pin); //output M5 direction control
 	output(M3_PWM_port_dir, M3_PWM_pin); //output M4 PWM
 	output(M5_PWM_port_dir, M5_PWM_pin); //output M5 PWM
-	output(M4_port_dir, M4_pin) //output M4 vibration motor
+	output(M4_port_dir, M4_pin); //output M4 vibration motor
 
 ///////////
 	//initialize inputs
@@ -773,7 +774,7 @@ int main(void)
 			output.speed_dock_m5_m = 0;
 			if (input.switch_S4_m == 0){
 				setLED(50,50,50);
-				output.speed_bend_m3_m = 125;
+				output.speed_bend_m3_m = 0;
 				output.direction_bend_m3_m=0;
 			}
 			else{
@@ -815,14 +816,214 @@ int main(void)
 
 //////////////////////////////////////////////////////////////////
 		// SLAVE MODE
-		// The slave board just lupdates outputs and sends sensor values.
+		// The slave board just updates outputs and sends sensor values.
 		else{
+			static uint8_t tx_data_counter=0; //counter for slave inputs
+			static uint8_t rx_data_count=0; //counter for slave outputs
+			if((TWCR & (1<<TWINT))) 
+			{
+//				printf("status 0x%x , count %d\n\r",(TWSR & 0xF8),rx_data_count);
+				//slave receiver stuff
+				if((TWSR & 0xF8)==0x60)
+				{
+					TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT); //??? Initialize receiver?
+					rx_data_count=0;
+				//	printf("slave rx address start\n\r");
+				}
+				else if((TWSR & 0xF8)==0x80) // ??? Ok to start data transfer
+				{
+					if(rx_data_count==0)
+					{
+						//Motor M3 speed
+						output.speed_bend_m3_s=TWDR; 
+					}
+					else if(rx_data_count==1)
+					{
+						//Motor M5 dock speed
+						output.speed_dock_m5_s=TWDR;
+					}
+					else if(rx_data_count==2)
+					{
+						//Motor M5 dock direction
 
+						output.direction_dock_m5_s=TWDR;
+						set_M5(output.direction_dock_m5_s, output.speed_dock_m5_s);
+						/*	
+						if(TWDR==0)
+						{
+						DDRB |= (1<<6); //old HB2-2 is PC2, now PB6
+						PORTB &= ~(1<<6);
+						OCR0B = dock_speed;
+
+						}
+						else
+						{
+							DDRB |= (1<<6); //old HB2-2 is PC2, now PB6
+							PORTB |= (1<<6);
+							OCR0B = 255-dock_speed; //HB2-1
+						}
+						*/
+
+					}
+					else if(rx_data_count==3) //M3 direction
+					{
+
+					//M3 direction
+					output.direction_bend_m3_s=TWDR;
+					set_M3(output.direction_bend_m3_s, output.speed_bend_m3_s);
+						/*
+						if(TWDR==0)
+						{
+						DDRB |= (1<<7); //old HB1-2 is PC3, now PB7
+						PORTB &= ~(1<<7);
+						OCR0A = output.speed_bend_m3_s;
+
+						}
+						else
+						{
+							DDRB |= (1<<7); //old HB1-2 is PC3, now PB7
+							PORTB |= (1<<7);
+							OCR0A = 255-output.speed_bend_m3_s;
+						}
+						*/
+					}
+					else if(rx_data_count==4)
+					{
+						output.led_s[0]=TWDR;
+					}
+					else if(rx_data_count==5)
+					{
+						output.led_s[1]=TWDR;
+					}
+					else if(rx_data_count==6)
+					{
+						output.led_s[2]=TWDR;
+						setLED(output.led_s[0],output.led_s[1],output.led_s[2]);
+					}
+					else if(rx_data_count==7)
+					{
+						power_state=TWDR;
+					
+					}
+					
+					//printf("slave rx--- data = %d, count=%d, status 0x%x\n\r",TWDR,rx_data_count,(TWSR & 0xF8));
+					TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT);
+					rx_data_count++;
+				}
+				else if((TWSR & 0xF8)==0xa0)
+				{
+					TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT);
+					//printf("end frame detected\n\r");
+				
+				}
+				else if((TWSR & 0xF8)==0xa8)//twi slave->master initalized
+				{
+					tx_data_counter=1;
+					TWDR=switch_tension1();
+					TWCR=(1<<TWINT)|(1<<TWEA)|(1<<TWEN);
+				
+				}
+				else if(((TWSR & 0xF8)==0xb8))
+				{
+				
+								
+					if(tx_data_counter==1)
+					TWDR=switch_dock();
+					else if(tx_data_counter==2)
+					TWDR=get_bend()&0xff;
+					else if(tx_data_counter==3)
+					TWDR=(get_bend()>>8)&0xff;
+
+					TWCR=(1<<TWINT)|(1<<TWEA)|(1<<TWEN);
+					tx_data_counter++;	
+				
+				}
+				else if(((TWSR & 0xF8)==0xc0))
+				{
+						
+					TWDR=1;
+					TWCR=(1<<TWINT)|(1<<TWEN)|(1<<TWEA);
+					tx_data_counter++;
+					
+				
+				}
+				else
+				{
+					printf("buss error? i2c data 0x%x\n\r",(TWSR & 0xF8));
+					TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
+				}	
+
+			}
+			if((power_state==0))
+			{
+				
+				printf("sleeping\n\r");
+				int i;
+				for(i=50;i>0;i--)
+				{
+					setLED(i,0,0);
+					_delay_ms(10);
+				}
+
+			
+
+			//same as in master code, turn everything (Hbridge) off (and make them inputs?)
+				DDRB &= ~(1<<6); 
+				PORTB &= ~(1<<6);
+				DDRD &= ~(1<<5);
+				PORTD &= ~(1<<5);
+
+				DDRB &= ~(1<<7);
+				PORTB &= ~(1<<7);
+				DDRD &= ~(1<<6);
+				PORTD &= ~(1<<6);
+
+				
+			//voltage reg off
+				DDRC &= ~(1<<0);
+				PORTC &= ~(1<<0);
+
+				sei();     
+				TWCR |= (1<<TWIE);
+		        SMCR = (1<<SE);
+		        asm volatile("sleep\n\t");
+				SMCR = 0;
+				DDRC |= (1<<0); //voltage reg back on
+				PORTC |= (1<<0);
+
+					printf("wakeup\n\r");
+			//	PRR |= (1<<PRTWI);
+				init();
+				toggle_wakeup=1;
+		        
+				power_state=1;
+			}
+			else
+			{
+				if(toggle_wakeup==1)
+				{
+					toggle_wakeup=0;
+					int i;
+					for(i=0;i<50;i++)
+					{
+						setLED(0,i,0);
+					_delay_ms(10);
+					}
+		
+					_delay_ms(500);
+					setLED(0,0,0);
+
+
+				}
+		//	printf("wakeup\n\r");
+			}
+			
 		}
+
 //////////////////////////////////////////////////////////////////
 		//THIS DELAY IS NECESSARY FOR ALL MODES OF THE ROBOT (actually may not be necessary for slave???)
 		_delay_ms(20); //you can adjust this delay.. eventually if too small it may cause problems
-	} //end of while
+} //end of while
 } //end of main
 
 void master_output_update() //motor updates
