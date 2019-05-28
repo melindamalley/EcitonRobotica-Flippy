@@ -478,7 +478,7 @@ uint8_t i2c_read_accell(uint8_t chip_address, uint8_t reg_address) //??? Double 
 
 int i2c_send() //master sends commands to slave
 {
-	cli();
+	cli(); //???
 
 	//start twi transmission
 	TWCR = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN);
@@ -826,7 +826,7 @@ int main(void)
 				//slave receiver stuff
 				if((TWSR & 0xF8)==0x60)
 				{
-					TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT); //??? Initialize receiver?
+					TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT); //???
 					rx_data_count=0;
 				//	printf("slave rx address start\n\r");
 				}
@@ -916,22 +916,25 @@ int main(void)
 					//printf("end frame detected\n\r");
 				
 				}
-				else if((TWSR & 0xF8)==0xa8)//twi slave->master initalized
+				else if((TWSR & 0xF8)==0xa8)//twi slave->master initalized 
 				{
+					//??? Why is he doing the tension switch separately from everything else?
+					//Tension Switch
 					tx_data_counter=1;
-					TWDR=switch_tension1();
+					//TWDR=switch_tension1();
+					TWDR=get_switch_input(STension_port, STension_pin);
 					TWCR=(1<<TWINT)|(1<<TWEA)|(1<<TWEN);
 				
 				}
 				else if(((TWSR & 0xF8)==0xb8))
 				{
-				
-								
-					if(tx_data_counter==1)
-					TWDR=switch_dock();
-					else if(tx_data_counter==2)
+												
+					if(tx_data_counter==1) //Dock/Control Switch S4
+					//TWDR=switch_dock();
+					TWDR=get_switch_input(S4_port, S4_pin);
+					else if(tx_data_counter==2) //bend sensor
 					TWDR=get_bend()&0xff;
-					else if(tx_data_counter==3)
+					else if(tx_data_counter==3) //??? Why do we need to do this twice?
 					TWDR=(get_bend()>>8)&0xff;
 
 					TWCR=(1<<TWINT)|(1<<TWEA)|(1<<TWEN);
@@ -941,7 +944,7 @@ int main(void)
 				else if(((TWSR & 0xF8)==0xc0))
 				{
 						
-					TWDR=1;
+					TWDR=1; //??? What is this? To reset back to receive mode?
 					TWCR=(1<<TWINT)|(1<<TWEN)|(1<<TWEA);
 					tx_data_counter++;
 					

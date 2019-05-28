@@ -183,12 +183,12 @@ ISR(INT1_vect)
 //master sends commands to slave
 int i2c_send()
 {
-	cli();
+	cli(); //???
 
 	
 	
 	//start twi transmission
-	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
+	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN); //start condition for master transmitter mode
 
 	//wait for TWCR flag to set indication start is transmitted
 	while(!(TWCR &(1<<TWINT)));
@@ -196,8 +196,8 @@ int i2c_send()
 	//check to see if start is an error or not
 	if((TWSR & 0xF8) != 0x08){
 	printf("start of i2c read error\n\r");
-	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
-	sei();
+	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO); //???
+	sei(); //???
 	return (-1);
 	}
 
