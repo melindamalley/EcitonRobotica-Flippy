@@ -201,8 +201,6 @@ int i2c_send()
 	return (-1);
 	}
 
-
-
 	//Load read address of slave in to TWDR, 
 	TWDR=atmega_slave ;	 //in example this is TWDR0???
 
@@ -330,7 +328,7 @@ int i2c_send()
 	return (-1);
 	}
 
-	TWCR = (1<<TWINT)|(1<<TWSTO);
+	TWCR = (1<<TWINT)|(1<<TWSTO); //Stop condition???
 
 	return(0);
 }

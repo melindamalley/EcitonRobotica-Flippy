@@ -11,8 +11,8 @@
 #include <stdio.h>
 #include <avr/interrupt.h>
 
-#define MASTER 0   // 1 for Master, 0 for Slave
-#define PCBTESTMODE 1 // 1 for running tests, 0 for experiments
+#define MASTER 1   // 1 for Master, 0 for Slave
+#define PCBTESTMODE 0 // 1 for running tests, 0 for experiments
 
 #define FOSC 8000000					   // oscillator clock frequency, page 164 datasheet, internal RC oscillator clock source selected by fuse bits
 #define BAUD 9600						   // baud rate desired
@@ -41,6 +41,8 @@
 //#define EXPERIMENT	0x01
 #define SETUP 0x10
 #define FLIP 0x20
+
+#define UNWIND 0x00
 
 #define atmega_slave 0xf0 // // address of the slave board processor, to be renamed to something more meaningful e.g. MCU_slave_address
 #define led_wrt_cmd 0x3A  // led driver write command
@@ -311,8 +313,7 @@ uint8_t i2c_write_accell(uint8_t chip_address, uint8_t reg_address, uint8_t data
 	// wait for TWINT bit in TWCR reg set by the TWI control unit
 	// this indicates START condition transmission is finished
 	// user application code then checks TWSR reg if START condition transmission successful
-	while (!(TWCR & (1 << TWINT)))
-		;
+	while (!(TWCR & (1 << TWINT)));
 
 	// Checks TWSR reg if START condition transmission successful, see datasheet page 183
 	if ((TWSR & 0xF8) != 0x08)
@@ -328,8 +329,7 @@ uint8_t i2c_write_accell(uint8_t chip_address, uint8_t reg_address, uint8_t data
 	TWCR = (1 << TWINT) | (1 << TWEN);
 
 	// wait for TWINT flag to raise, indicating transmission and ack/nack receive
-	while (!(TWCR & (1 << TWINT)))
-		;
+	while (!(TWCR & (1 << TWINT)));
 
 	// Check TWSR reg to if ack received
 	if ((TWSR & 0xF8) != 0x18)
@@ -809,8 +809,39 @@ int main(void)
 				case SETUP: //Experiment Set-up and Reset (in case the robot gets stuck)
 	//					setLED(0,0,0);
 	//					_delay_ms(100);
+					switch(state){
+						case UNWIND: //unwind
+							//setLED(20,20,20);
+							if((input.switch_S4_m==0)&(input.switch_S4_s==0)){
+								state=1;
+								count=0;
+								toggle=0;
+								output.led_m[0]=0;
+								output.led_s[0]=0;
+								output.led_m[1]=0;
+								output.led_s[1]=0;
+								}
+							else if(input.switch_S4_m==0)
+							{
+								output.led_m[0]=30;
+								output.led_m[1]=0;	
+								output.direction_bend_m3_m=1;
+								output.speed_bend_m3_m=100;
+							}
+							else if(input.switch_S4_s==0)
+							{
+								output.led_s[0]=30;	
+								output.led_s[1]=0;
+								output.direction_bend_m3_s=1;
+								output.speed_bend_m3_s=100;
+							}
+					}
 				case FLIP: //Normal locomotion
 				break;
+			master_output_update();
+			master_input_update();
+			i2c_send();
+			i2c_read();
 			}
 		}
 //////////////////////////////////////////////////////////////////
@@ -1045,6 +1076,8 @@ void master_output_update() //motor updates
 		DDRB |= (1 << 0); //Vibration motor PB0
 		PORTB &= ~(1 << 0);
 	}
+
+	setLED(output.led_m[0],output.led_m[1],output.led_m[2]);
 }
 
 void master_input_update()
@@ -1120,8 +1153,7 @@ int get_IR_Flex_U1513(void)
 
 	//when the following code was in main, while loop started here
 	ADCSRA |= (1 << ADSC); //start adc conversion to sample sensor with led off
-	while ((ADCSRA & (1 << ADSC)) != 0)
-		; //busy wait for conversion to end
+	while ((ADCSRA & (1 << ADSC)) != 0); //busy wait for conversion to end
 
 	//		printf("%d \n\r",ADCW);
 
@@ -1139,11 +1171,27 @@ int get_IR_U5(void)
 
 	//when the following code was in main, while loop started here
 	ADCSRA |= (1 << ADSC); //start adc conversion to sample sensor with led off
-	while ((ADCSRA & (1 << ADSC)) != 0)
-		; //busy wait for conversion to end
+	while ((ADCSRA & (1 << ADSC)) != 0); //busy wait for conversion to end
 	//	printf("%d \n\r",ADCW);
 
 	return (ADCW);
+}
+
+int get_bend(void)
+{	
+	     //initalize adc
+		ADMUX &= (1<<REFS0); //choose reference and clear analog pins
+		ADMUX |= 0x01;//voltage reference selection AVcc at AREF and choose analog pin - ADC1
+		ADCSRA = (1<<ADEN) |    (1<<ADPS0); //set up a/d (aden adc enable, )
+
+		//when the following code was in main, while loop started here
+		ADCSRA |= (1<<ADSC);//start adc conversion to sample sensor with led off
+		while((ADCSRA&(1<<ADSC))!=0);//busy wait for converstion to end
+
+//			printf("%d \n\r",ADCW);	
+
+		return(ADCW);
+
 }
 
 //////////////////OUTPUT FUNCTIONS
