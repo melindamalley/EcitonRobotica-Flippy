@@ -185,7 +185,7 @@ int i2c_send()
 {
 	cli(); //???
 
-	
+	//See atmega datasheet page 270 for example code
 	
 	//start twi transmission
 	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN); //start condition for master transmitter mode
@@ -193,8 +193,8 @@ int i2c_send()
 	//wait for TWCR flag to set indication start is transmitted
 	while(!(TWCR &(1<<TWINT)));
 
-	//check to see if start is an error or not
-	if((TWSR & 0xF8) != 0x08){
+	//check TWI status register to see if start is an error, masking prescaler
+	if((TWSR & 0xF8) != 0x08){ //0x08 is START???
 	printf("start of i2c read error\n\r");
 	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO); //???
 	sei(); //???
@@ -204,16 +204,16 @@ int i2c_send()
 
 
 	//Load read address of slave in to TWDR, 
-	TWDR=atmega_slave ;	 
+	TWDR=atmega_slave ;	 //in example this is TWDR0???
 
-	//start transmission
-	TWCR=(1<<TWINT)|(1<<TWEN);
+	//Clear TWINT bit to start transmission
+	TWCR=(1<<TWINT)|(1<<TWEN); //in example this is TWCR0???
 
-	//wait for TWINT flag to se, indicating transmission and ack/nack receive
+	//wait for TWINT flag to set, indicating transmission and ack/nack receive
 	while(!(TWCR & (1<<TWINT)));
 
 	//check to see if ack received
-	if((TWSR & 0xF8) != 0x18)	{
+	if((TWSR & 0xF8) != 0x18)	{ //MT_SLA_ACK 0x18?
 	printf("1 ack problem 0x%x \n\r",(TWSR & 0xF8));
 	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
 	sei();
@@ -223,14 +223,12 @@ int i2c_send()
 
 	TWDR=output.speed_bend_m3_s;
 
+	TWCR = (1<<TWINT)|(1<<TWEN);//Clear the TWINT bit to start transmission of data
 
-
-	TWCR = (1<<TWINT)|(1<<TWEN);//start tx of data
-
-	while(!(TWCR&(1<<TWINT)));//wait for data to tx
+	while(!(TWCR&(1<<TWINT)));//wait for TWINT flag set; data to transmit
 
 	//check for data ack	
-	if((TWSR & 0xF8) != 0x28)	{
+	if((TWSR & 0xF8) != 0x28)	{ //0x28 MT_DATA_ACK
 	TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
 	sei();
 	return (-1);
@@ -333,11 +331,6 @@ int i2c_send()
 	}
 
 	TWCR = (1<<TWINT)|(1<<TWSTO);
-
-
-	
-	
-
 
 	return(0);
 }

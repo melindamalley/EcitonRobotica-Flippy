@@ -480,6 +480,8 @@ int i2c_send() //master sends commands to slave
 {
 	cli(); //???
 
+	//See atmega datasheet page 270 for example code
+
 	//start twi transmission
 	TWCR = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN);
 
@@ -487,8 +489,8 @@ int i2c_send() //master sends commands to slave
 	while (!(TWCR & (1 << TWINT)))
 		;
 
-	//check to see if start is an error or not
-	if ((TWSR & 0xF8) != 0x08)
+	//check TWI status register to see if start is an error, masking prescaler
+	if ((TWSR & 0xF8) != 0x08) //0x08 is START???
 	{
 		printf("start of i2c read error\n\r");
 		TWCR = (1 << TWEA) | (1 << TWEN) | (1 << TWINT) | (1 << TWSTO);
@@ -497,7 +499,7 @@ int i2c_send() //master sends commands to slave
 	}
 
 	//Load read address of slave in to TWDR,
-	TWDR = atmega_slave;
+	TWDR = atmega_slave; //in example this is TWDR0???
 
 	//start transmission
 	TWCR = (1 << TWINT) | (1 << TWEN);
@@ -507,7 +509,7 @@ int i2c_send() //master sends commands to slave
 		;
 
 	//check to see if ack received
-	if ((TWSR & 0xF8) != 0x18)
+	if ((TWSR & 0xF8) != 0x18) //MT_SLA_ACK 0x18
 	{
 		printf("1 ack problem 0x%x \n\r", (TWSR & 0xF8));
 		TWCR = (1 << TWEA) | (1 << TWEN) | (1 << TWINT) | (1 << TWSTO);
@@ -517,16 +519,15 @@ int i2c_send() //master sends commands to slave
 
 	TWDR = output.speed_bend_m3_s;
 
-	TWCR = (1 << TWINT) | (1 << TWEN); //start tx of data
+	TWCR = (1 << TWINT) | (1 << TWEN); //Clear the TWINT bit to start transmission of data
 
-	while (!(TWCR & (1 << TWINT)))
-		; //wait for data to tx
+	while (!(TWCR & (1 << TWINT))); //wait for TWINT flag set; data to transmit
 
 	//check for data ack
-	if ((TWSR & 0xF8) != 0x28)
+	if ((TWSR & 0xF8) != 0x28) //0x28 MT_DATA_ACK
 	{
 		TWCR = (1 << TWEA) | (1 << TWEN) | (1 << TWINT) | (1 << TWSTO);
-		sei();
+		sei(); //???
 		return (-1);
 	}
 
@@ -638,7 +639,7 @@ int i2c_send() //master sends commands to slave
 		return (-1);
 	}
 
-	TWCR = (1 << TWINT) | (1 << TWSTO);
+	TWCR = (1 << TWINT) | (1 << TWSTO); ////Stop condition??? should also include |(1<<TWEN)
 
 	return (0);
 }
