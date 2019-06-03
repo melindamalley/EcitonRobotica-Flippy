@@ -796,6 +796,7 @@ int main(void)
 			//printf("IR %d \n\r", input.IR1_m); //for bend sensor reading only - note change function name to reflect.
 			master_output_update();
 			master_input_update();
+			_delay_ms(20);
 		}
 //////////////////////////////////////////////////////////////////
 
@@ -809,6 +810,7 @@ int main(void)
 			master_output_update();
 			i2c_read();
 			master_input_update();
+			_delay_ms(20);
 			//setLED(0,0,0);
 		/////
 
@@ -820,7 +822,7 @@ int main(void)
 						case UNWIND: //unwind
 							//printf("unwind");
 							output.speed_dock_m5_m = 0;
-							if (input.switch_S4_s == 1){
+							if (input.switch_S4_m == 0){
 								output.led_m[1]=20;
 								output.speed_bend_m3_m = 100;
 								output.direction_bend_m3_m=0;
@@ -866,7 +868,7 @@ int main(void)
 		// SLAVE MODE
 		// The slave board just updates outputs and sends sensor values.
 		else{
-			printf("slave mode");
+			//printf("slave mode");
 			static uint8_t tx_data_counter=0; //counter for slave inputs
 			static uint8_t rx_data_count=0; //counter for slave outputs
 			if((TWCR & (1<<TWINT))) 
@@ -877,7 +879,7 @@ int main(void)
 				{
 					TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT); //???
 					rx_data_count=0;
-					printf("slave rx address start\n\r");
+					//printf("slave rx address start\n\r");
 				}
 				else if((TWSR & 0xF8)==0x80) // ??? Ok to start data transfer
 				{
@@ -1069,14 +1071,14 @@ int main(void)
 				}
 		//	printf("wakeup\n\r");
 			}
-			
-		}
-
+		}	
+	}
+}
 //////////////////////////////////////////////////////////////////
 		//THIS DELAY IS NECESSARY FOR ALL MODES OF THE ROBOT (actually may not be necessary for slave???)
-		_delay_ms(20); //you can adjust this delay.. eventually if too small it may cause problems
-} //end of while
-} //end of main
+		//_delay_ms(20); //you can adjust this delay.. eventually if too small it may cause problems
+//} //end of while
+//} //end of main
 
 void master_output_update() //motor updates
 {
