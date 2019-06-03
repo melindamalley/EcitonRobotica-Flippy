@@ -33,7 +33,7 @@
 #define gripperspd 180
 
 
-#define MASTER 1 //choose master or slave 
+#define MASTER 0 //choose master or slave 
 
 void setLED(unsigned char red, unsigned char green, unsigned char blue);
 int switch_power(void);
@@ -1401,13 +1401,13 @@ else{
 			static uint8_t rx_data_count=0; //counter for slave outputs
 			if((TWCR & (1<<TWINT))) 
 			{
-//				printf("status 0x%x , count %d\n\r",(TWSR & 0xF8),rx_data_count);
+				printf("status 0x%x , count %d\n\r",(TWSR & 0xF8),rx_data_count);
 				//slave receiver stuff
 				if((TWSR & 0xF8)==0x60)
 				{
 					TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT);
 					rx_data_count=0;
-				//	printf("slave rx address start\n\r");
+					//printf("slave rx address start\n\r");
 				}
 				else if((TWSR & 0xF8)==0x80)
 				{

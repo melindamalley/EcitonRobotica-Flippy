@@ -775,7 +775,7 @@ int main(void)
 			output.speed_dock_m5_m = 0;
 			if (input.switch_S4_m == 0){
 				setLED(50,50,50);
-				output.speed_bend_m3_m = 0;
+				output.speed_bend_m3_m = 100;
 				output.direction_bend_m3_m=0;
 			}
 			else{
@@ -803,15 +803,33 @@ int main(void)
 	// MASTER EXPERIMENT MODE
 	// This is the state for running experiments through the master board
 		else if(MASTER){
+
+		/////First update everything
+			i2c_send();
+			master_output_update();
+			i2c_read();
+			master_input_update();
 			//setLED(0,0,0);
-			//_delay_ms(100);
+		/////
+
 			switch (system_state){
 				case SETUP: //Experiment Set-up and Reset (in case the robot gets stuck)
 	//					setLED(0,0,0);
 	//					_delay_ms(100);
 					switch(state){
 						case UNWIND: //unwind
-							//setLED(20,20,20);
+							//printf("unwind");
+							output.speed_dock_m5_m = 0;
+							if (input.switch_S4_s == 1){
+								output.led_m[1]=20;
+								output.speed_bend_m3_m = 100;
+								output.direction_bend_m3_m=0;
+							}
+							else{
+								output.speed_bend_m3_m = 0;
+								output.led_m[1]=20;
+							}
+							/*
 							if((input.switch_S4_m==0)&(input.switch_S4_s==0)){
 								state=1;
 								count=0;
@@ -834,14 +852,12 @@ int main(void)
 								output.led_s[1]=0;
 								output.direction_bend_m3_s=1;
 								output.speed_bend_m3_s=100;
-							}
+							} */
+						break;
 					}
+				break;
 				case FLIP: //Normal locomotion
 				break;
-			master_output_update();
-			master_input_update();
-			i2c_send();
-			i2c_read();
 			}
 		}
 //////////////////////////////////////////////////////////////////
@@ -850,17 +866,18 @@ int main(void)
 		// SLAVE MODE
 		// The slave board just updates outputs and sends sensor values.
 		else{
+			printf("slave mode");
 			static uint8_t tx_data_counter=0; //counter for slave inputs
 			static uint8_t rx_data_count=0; //counter for slave outputs
 			if((TWCR & (1<<TWINT))) 
 			{
-//				printf("status 0x%x , count %d\n\r",(TWSR & 0xF8),rx_data_count);
+				printf("status 0x%x , count %d\n\r",(TWSR & 0xF8),rx_data_count);
 				//slave receiver stuff
 				if((TWSR & 0xF8)==0x60)
 				{
 					TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT); //???
 					rx_data_count=0;
-				//	printf("slave rx address start\n\r");
+					printf("slave rx address start\n\r");
 				}
 				else if((TWSR & 0xF8)==0x80) // ??? Ok to start data transfer
 				{
@@ -1076,14 +1093,13 @@ void master_output_update() //motor updates
 		DDRB |= (1 << 0); //Vibration motor PB0
 		PORTB &= ~(1 << 0);
 	}
-
 	setLED(output.led_m[0],output.led_m[1],output.led_m[2]);
 }
 
 void master_input_update()
 {
 	input.switch_S4_m = get_switch_input(S4_port, S4_pin); //0 is button pressed.
-	input.switch_tension_m = get_switch_input(STension_port, STension_pin); //1 is button pressed. 
+	input.switch_tension_m = get_switch_input(STension_port, STension_pin); //1 is button pressed.
 	//	input.bend_m=get_bend();
 	//	input.IR1_m=get_IR_Flex_U1513();
 	//	printf("%d \n\r",input.IR1_m);
@@ -1091,7 +1107,7 @@ void master_input_update()
 	//	printf("%d \n\r",input.IR2_m);
 
 	// Get accel data from master side
-	get_IMU_measurement();
+	//get_IMU_measurement();
 }
 
 ///////////////////INPUT READ FUNCTIONS
