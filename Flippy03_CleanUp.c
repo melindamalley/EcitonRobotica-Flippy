@@ -11,11 +11,11 @@
 #include <stdio.h>
 #include <avr/interrupt.h>
 
-#define MASTER 1   // 1 for Master, 0 for Slave
+#define MASTER 0   // 1 for Master, 0 for Slave
 #define PCBTESTMODE 0 // 1 for running tests, 0 for experiments
 
-#define FOSC 8000000					   // oscillator clock frequency, page 164 datasheet, internal RC oscillator clock source selected by fuse bits
-#define BAUD 9600						   // baud rate desired
+#define FOSC 8000000 // oscillator clock frequency, page 164 datasheet, internal RC oscillator clock source selected by fuse bits
+#define BAUD 9600 // baud rate desired
 #define MYUBRR ((FOSC / (16L * BAUD)) - 1) // used to set the UBRR high and low registers, Usart Baud Rate registers, for formula see datasheet page 146
 
 // IMU information
@@ -282,6 +282,13 @@ void init(void)
 	power_state = 1;
 	sleep_mode = 1;
 	toggle_wakeup = 0;
+
+
+//SETUP SLAVE (From old code???)
+	if(!MASTER){
+		TWAR=atmega_slave;
+		TWCR= (1<<TWEA)|(1<<TWEN);//|(1<<TWINT);
+	}
 }
 
 // AVR TWI is byte-oriented and interrupt based
@@ -412,8 +419,7 @@ uint8_t i2c_read_accell(uint8_t chip_address, uint8_t reg_address) //??? Double 
 	TWDR = reg_address;				   // accell x value msb's
 	TWCR = (1 << TWINT) | (1 << TWEN); //start tx of data
 
-	while (!(TWCR & (1 << TWINT)))
-		; //wait for data to tx
+	while (!(TWCR & (1 << TWINT))); //wait for data to tx
 
 	//check for data ack
 	if ((TWSR & 0xF8) != 0x28)
@@ -430,8 +436,7 @@ uint8_t i2c_read_accell(uint8_t chip_address, uint8_t reg_address) //??? Double 
 	TWCR = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN);
 
 	//wait for TWCR flag to set indication start is transmitted
-	while (!(TWCR & (1 << TWINT)))
-		;
+	while (!(TWCR & (1 << TWINT)));
 
 	//check to see if start is an error or not
 	if ((TWSR & 0xF8) != 0x10)
@@ -445,8 +450,7 @@ uint8_t i2c_read_accell(uint8_t chip_address, uint8_t reg_address) //??? Double 
 	TWCR = (1 << TWINT) | (1 << TWEN);
 
 	//wait for TWINT flag to se, indicating transmission and ack/nack receive
-	while (!(TWCR & (1 << TWINT)))
-		;
+	while (!(TWCR & (1 << TWINT)));
 
 	//check to see if ack received
 	if ((TWSR & 0xF8) != 0x40)
@@ -456,8 +460,7 @@ uint8_t i2c_read_accell(uint8_t chip_address, uint8_t reg_address) //??? Double 
 	TWCR = (1 << TWINT) | (1 << TWEN);
 
 	//wait for TWINT flag to se, indicating transmission and ack/nack receive
-	while (!(TWCR & (1 << TWINT)))
-		;
+	while (!(TWCR & (1 << TWINT)));
 
 	//check to see if ack received
 	if ((TWSR & 0xF8) != 0x58)
@@ -476,7 +479,8 @@ uint8_t i2c_read_accell(uint8_t chip_address, uint8_t reg_address) //??? Double 
 //////////////////////////////////////////////////////////////////
 //Between Board Communication Functions 
 
-int i2c_send() //master sends commands to slave
+ //master sends commands to slave
+int i2c_send()
 {
 	cli(); //???
 
@@ -486,8 +490,7 @@ int i2c_send() //master sends commands to slave
 	TWCR = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN);
 
 	//wait for TWCR flag to set indication start is transmitted
-	while (!(TWCR & (1 << TWINT)))
-		;
+	while (!(TWCR & (1 << TWINT)));
 
 	//check TWI status register to see if start is an error, masking prescaler
 	if ((TWSR & 0xF8) != 0x08) //0x08 is START???
@@ -505,14 +508,13 @@ int i2c_send() //master sends commands to slave
 	TWCR = (1 << TWINT) | (1 << TWEN);
 
 	//wait for TWINT flag to se, indicating transmission and ack/nack receive
-	while (!(TWCR & (1 << TWINT)))
-		;
+	while(!(TWCR & (1 << TWINT)));
 
 	//check to see if ack received
-	if ((TWSR & 0xF8) != 0x18) //MT_SLA_ACK 0x18
+	if((TWSR & 0xF8) != 0x18) //MT_SLA_ACK 0x18
 	{
-		printf("1 ack problem 0x%x \n\r", (TWSR & 0xF8));
-		TWCR = (1 << TWEA) | (1 << TWEN) | (1 << TWINT) | (1 << TWSTO);
+		printf("1 ack problem 0x%x \n\r",(TWSR & 0xF8));
+		TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
 		sei();
 		return (-1);
 	}
@@ -521,7 +523,7 @@ int i2c_send() //master sends commands to slave
 
 	TWCR = (1 << TWINT) | (1 << TWEN); //Clear the TWINT bit to start transmission of data
 
-	while (!(TWCR & (1 << TWINT))); //wait for TWINT flag set; data to transmit
+	while(!(TWCR & (1 << TWINT))); //wait for TWINT flag set; data to transmit
 
 	//check for data ack
 	if ((TWSR & 0xF8) != 0x28) //0x28 MT_DATA_ACK
@@ -654,8 +656,7 @@ int i2c_read() //read all inputs from slave via i2c
 	TWCR = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN);
 
 	//wait for TWCR flag to set indication start is transmitted
-	while (!(TWCR & (1 << TWINT)))
-		;
+	while (!(TWCR & (1 << TWINT)));
 
 	//check to see if start is an error or not
 	if ((TWSR & 0xF8) != 0x08)
@@ -673,8 +674,7 @@ int i2c_read() //read all inputs from slave via i2c
 	TWCR = (1 << TWINT) | (1 << TWEN);
 
 	//wait for TWINT flag to se, indicating transmission and ack/nack receive
-	while (!(TWCR & (1 << TWINT)))
-		;
+	while (!(TWCR & (1 << TWINT)));
 
 	//check to see if ack received
 	if ((TWSR & 0xF8) != 0x40)
@@ -773,7 +773,7 @@ int main(void)
 			//	        _delay_ms(500);
 			//	        setLED(0,0,0);
 			output.speed_dock_m5_m = 0;
-			if (input.switch_S4_m == 0){
+			if (input.switch_S4_s == 0){
 				setLED(50,50,50);
 				output.speed_bend_m3_m = 100;
 				output.direction_bend_m3_m=0;
@@ -798,7 +798,6 @@ int main(void)
 			master_input_update();
 			_delay_ms(20);
 		}
-//////////////////////////////////////////////////////////////////
 
 //////////////////////////////////////////////////////////////////
 	// MASTER EXPERIMENT MODE
@@ -816,20 +815,20 @@ int main(void)
 
 			switch (system_state){
 				case SETUP: //Experiment Set-up and Reset (in case the robot gets stuck)
-	//					setLED(0,0,0);
-	//					_delay_ms(100);
+						//setLED(0,0,0);
+						//_delay_ms(100);
 					switch(state){
 						case UNWIND: //unwind
 							//printf("unwind");
 							output.speed_dock_m5_m = 0;
-							if (input.switch_S4_m == 0){
+							if (input.switch_S4_s == 0){
 								output.led_m[1]=20;
 								output.speed_bend_m3_m = 100;
 								output.direction_bend_m3_m=0;
 							}
 							else{
 								output.speed_bend_m3_m = 0;
-								output.led_m[1]=20;
+								output.led_m[1]=0;
 							}
 							/*
 							if((input.switch_S4_m==0)&(input.switch_S4_s==0)){
@@ -857,9 +856,9 @@ int main(void)
 							} */
 						break;
 					}
-				break;
+				break; //end SETUP
 				case FLIP: //Normal locomotion
-				break;
+				break; //end FLIP
 			}
 		}
 //////////////////////////////////////////////////////////////////
@@ -873,8 +872,8 @@ int main(void)
 			static uint8_t rx_data_count=0; //counter for slave outputs
 			if((TWCR & (1<<TWINT))) 
 			{
-				printf("status 0x%x , count %d\n\r",(TWSR & 0xF8),rx_data_count);
-				//slave receiver stuff
+				//printf("status 0x%x , count %d\n\r",(TWSR & 0xF8),rx_data_count);
+				//slave receives outputs from master
 				if((TWSR & 0xF8)==0x60)
 				{
 					TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT); //???
@@ -918,7 +917,6 @@ int main(void)
 					}
 					else if(rx_data_count==3) //M3 direction
 					{
-
 					//M3 direction
 					output.direction_bend_m3_s=TWDR;
 					set_M3(output.direction_bend_m3_s, output.speed_bend_m3_s);
@@ -956,7 +954,7 @@ int main(void)
 						power_state=TWDR;
 					
 					}
-					
+				
 					//printf("slave rx--- data = %d, count=%d, status 0x%x\n\r",TWDR,rx_data_count,(TWSR & 0xF8));
 					TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT);
 					rx_data_count++;
@@ -1003,13 +1001,12 @@ int main(void)
 				}
 				else
 				{
-					printf("buss error? i2c data 0x%x\n\r",(TWSR & 0xF8));
+					printf("bus error? i2c data 0x%x\n\r",(TWSR & 0xF8));
 					TWCR= (1<<TWEA)|(1<<TWEN)|(1<<TWINT)|(1<<TWSTO);
 				}	
 
 			}
-			if((power_state==0))
-			{
+			if((power_state==0)){
 				
 				printf("sleeping\n\r");
 				int i;
@@ -1017,11 +1014,9 @@ int main(void)
 				{
 					setLED(i,0,0);
 					_delay_ms(10);
-				}
+				}			
 
-			
-
-			//same as in master code, turn everything (Hbridge) off (and make them inputs?)
+				//same as in master code, turn everything (Hbridge) off (and make them inputs?)
 				DDRB &= ~(1<<6); 
 				PORTB &= ~(1<<6);
 				DDRD &= ~(1<<5);
@@ -1031,9 +1026,8 @@ int main(void)
 				PORTB &= ~(1<<7);
 				DDRD &= ~(1<<6);
 				PORTD &= ~(1<<6);
-
-				
-			//voltage reg off
+			
+				//voltage reg off
 				DDRC &= ~(1<<0);
 				PORTC &= ~(1<<0);
 
@@ -1045,40 +1039,34 @@ int main(void)
 				DDRC |= (1<<0); //voltage reg back on
 				PORTC |= (1<<0);
 
-					printf("wakeup\n\r");
+				printf("wakeup\n\r");
 			//	PRR |= (1<<PRTWI);
 				init();
 				toggle_wakeup=1;
 		        
 				power_state=1;
 			}
-			else
-			{
-				if(toggle_wakeup==1)
-				{
+			else {
+				if(toggle_wakeup==1){
 					toggle_wakeup=0;
 					int i;
 					for(i=0;i<50;i++)
 					{
 						setLED(0,i,0);
-					_delay_ms(10);
+						_delay_ms(10);
 					}
 		
 					_delay_ms(500);
 					setLED(0,0,0);
-
-
 				}
-		//	printf("wakeup\n\r");
+				//printf("wakeup\n\r");
 			}
-		}	
-	}
-}
+		}	//end slave code
+	} //end of while
+} //end of main
 //////////////////////////////////////////////////////////////////
 		//THIS DELAY IS NECESSARY FOR ALL MODES OF THE ROBOT (actually may not be necessary for slave???)
 		//_delay_ms(20); //you can adjust this delay.. eventually if too small it may cause problems
-//} //end of while
-//} //end of main
 
 void master_output_update() //motor updates
 {
