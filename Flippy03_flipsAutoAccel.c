@@ -1312,7 +1312,7 @@ else{
 				_delay_ms(2000);
 				break;
 				}
-			else if (input.switch_dock_m==1){
+			else if (input.switch_dock_m==1){  
 				output.led_s[0]=20;
 				output.led_s[1]=0;
 				output.direction_dock_m5_s=0;
@@ -1553,9 +1553,9 @@ else{
 					//TWDR=switch_dock();
 					TWDR=get_switch_input(S4_port, S4_pin);
 					else if(tx_data_counter==2)
-					TWDR=get_bend()&0xff;
+					TWDR=get_IR1()&0xff;
 					else if(tx_data_counter==3)
-					TWDR=(get_bend()>>8)&0xff;
+					TWDR=(get_IR1()>>8)&0xff;
 
 					TWCR=(1<<TWINT)|(1<<TWEA)|(1<<TWEN);
 					tx_data_counter++;	

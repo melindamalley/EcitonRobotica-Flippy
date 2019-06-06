@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <avr/interrupt.h>
 
-#define MASTER 0   // 1 for Master, 0 for Slave
+#define MASTER 1   // 1 for Master, 0 for Slave
 #define PCBTESTMODE 0 // 1 for running tests, 0 for experiments
 
 #define FOSC 8000000 // oscillator clock frequency, page 164 datasheet, internal RC oscillator clock source selected by fuse bits
@@ -43,6 +43,9 @@
 #define FLIP 0x20
 
 #define UNWIND 0x00
+#define REWIND 0x01
+#define SLAVE_GRIPPER 0x02
+#define MASTER_GRIPPER 0x03
 
 #define atmega_slave 0xf0 // // address of the slave board processor, to be renamed to something more meaningful e.g. MCU_slave_address
 #define led_wrt_cmd 0x3A  // led driver write command
@@ -151,6 +154,8 @@ struct inputs
 	int bend_m;
 	int IR1_m;
 	int IR2_m;
+	int IR1_s;
+	int IR2_s;
 	int accell_m[3];
 	int accell_s[3];
 };
@@ -727,13 +732,13 @@ int i2c_read() //read all inputs from slave via i2c
 		{
 			input.switch_S4_s = TWDR;
 		}
-		else if (data_counter == 2)
+		else if (data_counter == 2) //get first half of bend
 		{
 			temp_var = TWDR;
 		}
-		else if (data_counter >= 3)
+		else if (data_counter >= 3) //second half of bend
 		{
-			input.bend_s = (TWDR << 8) + temp_var;
+			input.IR1_s = (TWDR << 8) + temp_var;
 		}
 
 		data_counter++;
@@ -815,30 +820,26 @@ int main(void)
 
 			switch (system_state){
 				case SETUP: //Experiment Set-up and Reset (in case the robot gets stuck)
-						//setLED(0,0,0);
-						//_delay_ms(100);
+					//printf("state %d \n\r", state);
 					switch(state){
-						case UNWIND: //unwind
-							//printf("unwind");
-							output.speed_dock_m5_m = 0;
-							if (input.switch_S4_s == 0){
-								output.led_m[1]=20;
-								output.speed_bend_m3_m = 100;
-								output.direction_bend_m3_m=0;
-							}
-							else{
-								output.speed_bend_m3_m = 0;
-								output.led_m[1]=0;
-							}
-							/*
+						case UNWIND: //unwind motors on command
+							output.led_m[1]=20;
+							output.led_s[1]=20;
+							output.speed_bend_m3_m=0;
+							output.speed_bend_m3_s=0;
+							output.speed_dock_m5_m=0;
+							output.speed_dock_m5_s=0;
+
 							if((input.switch_S4_m==0)&(input.switch_S4_s==0)){
-								state=1;
+								state=REWIND;
 								count=0;
 								toggle=0;
 								output.led_m[0]=0;
 								output.led_s[0]=0;
 								output.led_m[1]=0;
 								output.led_s[1]=0;
+								output.speed_bend_m3_m=0;
+								output.speed_bend_m3_s=0;
 								}
 							else if(input.switch_S4_m==0)
 							{
@@ -853,8 +854,114 @@ int main(void)
 								output.led_s[1]=0;
 								output.direction_bend_m3_s=1;
 								output.speed_bend_m3_s=100;
-							} */
-						break;
+							} 
+							break;
+						case REWIND: //wind the motors
+
+							//default motors off
+							output.direction_bend_m3_m=0;
+							output.direction_bend_m3_s=0;
+
+							//Make sure the control switch is unpressed before checking again. 
+							if ((input.switch_S4_m==1)&(input.switch_S4_s==1)){
+								toggle=1;
+								printf("toggle");
+								}
+							//Main functionality - rewind motors until both tension switches are pressed. 
+							if (toggle==1){
+								if(input.switch_tension_s==0){
+									output.speed_bend_m3_m=60;
+									}
+								else {
+									output.speed_bend_m3_m=0;
+									}
+								if(input.switch_tension_m==0) {
+									output.speed_bend_m3_s=60;
+									}
+								else {
+									output.speed_bend_m3_s=0;
+								}	
+							}
+
+							//switch states conditions only if tension switches are pressed. 
+								//Move on to next state if master switch is pressed
+								//Go back to unwind state if S4 is pressed. Should this be the default?
+							if ((input.switch_tension_s==1)&(input.switch_tension_m==1)&(toggle=1)){
+								if(input.switch_S4_m==0){
+									state=SLAVE_GRIPPER;
+									toggle=0;
+									_delay_ms(2000);
+									break;
+								}
+								else if(input.switch_S4_s==0){
+									state=UNWIND;
+									toggle=0;
+									_delay_ms(2000);
+									break;
+								}
+							}
+							break;
+						case SLAVE_GRIPPER: //attach or detach slave side
+							output.led_m[0]=20;
+							//Both switches together move to the next state
+							if ((input.switch_S4_m==0)&&(input.switch_S4_s==0)){
+								output.speed_dock_m5_s=0;
+								output.speed_dock_m5_m=0;
+								output.led_s[0]=0;
+								output.led_s[2]=0;
+								output.led_m[0]=0;
+								state=MASTER_GRIPPER;
+								_delay_ms(2000);
+								break;
+								}
+							else if (input.switch_S4_m==0){
+								output.led_s[0]=20;
+								output.led_s[1]=0;
+								output.direction_dock_m5_s=0;
+								output.speed_dock_m5_s=0.7*gripperspd;
+								}
+							else if (input.switch_S4_s==0){
+								output.led_s[0]=0;
+								output.led_s[2]=20;
+								output.direction_dock_m5_s=1;
+								output.speed_dock_m5_s=gripperspd;
+								}
+							else{
+								output.led_s[0]=0;
+								output.led_s[1]=0;
+								output.speed_dock_m5_s=0;
+								}
+							break;
+						case MASTER_GRIPPER: //attach or detach master side
+							output.led_s[0]=20;
+							if ((input.switch_S4_m==0)&&(input.switch_S4_s==0)){
+								output.speed_dock_m5_s=0;
+								output.speed_dock_m5_m=0;
+								output.led_m[0]=0;
+								output.led_m[1]=0;
+								output.led_s[0]=0;
+								state=0;
+								_delay_ms(9000);
+								break;
+							}
+							else if (input.switch_S4_m==0){
+								output.led_m[0]=20;
+								output.led_m[1]=0;
+								output.direction_dock_m5_m=0;
+								output.speed_dock_m5_m=0.7*gripperspd;
+							}
+							else if (input.switch_S4_s==0){
+								output.led_m[0]=0;
+								output.led_m[1]=20;
+								output.direction_dock_m5_m=1;
+								output.speed_dock_m5_m=gripperspd;
+							}
+							else{
+								output.led_m[0]=0;
+								output.led_m[1]=0;
+								output.speed_dock_m5_m=0;
+							}
+							break;
 					}
 				break; //end SETUP
 				case FLIP: //Normal locomotion
@@ -979,7 +1086,6 @@ int main(void)
 				{
 												
 					if(tx_data_counter==1) //Dock/Control Switch S4
-					//TWDR=switch_dock();
 					TWDR=get_switch_input(S4_port, S4_pin);
 					else if(tx_data_counter==2) //bend sensor
 					TWDR=get_bend()&0xff;
