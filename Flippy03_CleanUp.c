@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <avr/interrupt.h>
 
-#define MASTER 1   // 1 for Master, 0 for Slave
+#define MASTER 0   // 1 for Master, 0 for Slave
 #define PCBTESTMODE 0 // 1 for running tests, 0 for experiments
 
 #define FOSC 8000000 // oscillator clock frequency, page 164 datasheet, internal RC oscillator clock source selected by fuse bits
@@ -692,10 +692,10 @@ int i2c_read() //read all inputs from slave via i2c
 	//	printf("third ack recieved OK 0x%x \n\r",(TWSR & 0xF8));
 	TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWEA);
 
-	while (data_counter < 4)
+	while (data_counter < 6)
 	{
 
-		if (data_counter < 3)
+		if (data_counter < 5)
 		{
 			TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWEA);
 		}
@@ -708,14 +708,14 @@ int i2c_read() //read all inputs from slave via i2c
 			;
 
 		//check to see if ack received
-		if (((TWSR & 0xF8) != 0x50) && (data_counter != 3))
+		if (((TWSR & 0xF8) != 0x50) && (data_counter != 5))
 		{
 			printf("data %d ack problem 0x%x \n\r", data_counter, (TWSR & 0xF8));
 			TWCR = (1 << TWEA) | (1 << TWEN) | (1 << TWINT) | (1 << TWSTO);
 			sei();
 			return (-1);
 		}
-		else if (((TWSR & 0xF8) != 0x58) && (data_counter >= 3))
+		else if (((TWSR & 0xF8) != 0x58) && (data_counter >= 5))
 		{
 			printf("data %d ack problem 0x%x \n\r", data_counter, (TWSR & 0xF8));
 			TWCR = (1 << TWEA) | (1 << TWEN) | (1 << TWINT) | (1 << TWSTO);
@@ -736,9 +736,18 @@ int i2c_read() //read all inputs from slave via i2c
 		{
 			temp_var = TWDR;
 		}
-		else if (data_counter >= 3) //second half of bend
+		else if (data_counter == 3) //second half of bend
 		{
 			input.IR1_s = (TWDR << 8) + temp_var;
+		}
+
+		else if (data_counter == 4) //get first half of bend
+		{
+			temp_var = TWDR;
+		}
+		else if (data_counter >= 5) //second half of bend
+		{
+			input.IR2_s = (TWDR << 8) + temp_var;
 		}
 
 		data_counter++;
@@ -746,7 +755,7 @@ int i2c_read() //read all inputs from slave via i2c
 
 	TWCR = (1 << TWSTO) | (1 << TWINT);
 
-	if (data_counter == 4)
+	if (data_counter == 6)
 	{
 
 		sei();
@@ -777,6 +786,7 @@ int main(void)
 			//	        setLED(50,50,50);
 			//	        _delay_ms(500);
 			//	        setLED(0,0,0);
+			/* 
 			output.speed_dock_m5_m = 0;
 			if (input.switch_S4_s == 0){
 				setLED(50,50,50);
@@ -786,7 +796,7 @@ int main(void)
 			else{
 				output.speed_bend_m3_m = 0;
 				setLED(0,0,0);
-			}
+			} */
 			//printf("%#08X \n\r", ((EXPERIMENT&SETUP)& 0x0F));
 			//output.speed_dock_m5_m=225;
 			//output.direction_dock_m5_m=0;
@@ -818,6 +828,8 @@ int main(void)
 			//setLED(0,0,0);
 		/////
 
+			printf("IR %d %d \n\r", input.IR1_s, input.IR2_s);
+			
 			switch (system_state){
 				case SETUP: //Experiment Set-up and Reset (in case the robot gets stuck)
 					//printf("state %d \n\r", state);
@@ -941,6 +953,7 @@ int main(void)
 								output.led_m[1]=0;
 								output.led_s[0]=0;
 								state=0;
+								system_state=FLIP;
 								_delay_ms(9000);
 								break;
 							}
@@ -1087,10 +1100,14 @@ int main(void)
 												
 					if(tx_data_counter==1) //Dock/Control Switch S4
 					TWDR=get_switch_input(S4_port, S4_pin);
-					else if(tx_data_counter==2) //bend sensor
-					TWDR=get_bend()&0xff;
-					else if(tx_data_counter==3) //??? Why do we need to do this twice?
-					TWDR=(get_bend()>>8)&0xff;
+					else if(tx_data_counter==2) //IR sensor pt 1
+					TWDR=get_IR_Flex_U1513()&0xff;
+					else if(tx_data_counter==3) //IR sensor pt 2
+					TWDR=(get_IR_Flex_U1513()>>8)&0xff;
+					else if(tx_data_counter==4) //IR sensor pt 1
+					TWDR=get_IR_U5()&0xff;
+					else if(tx_data_counter==5) //IR sensor pt 2
+					TWDR=(get_IR_U5()>>8)&0xff;
 
 					TWCR=(1<<TWINT)|(1<<TWEA)|(1<<TWEN);
 					tx_data_counter++;	
@@ -1197,10 +1214,10 @@ void master_input_update()
 	input.switch_S4_m = get_switch_input(S4_port, S4_pin); //0 is button pressed.
 	input.switch_tension_m = get_switch_input(STension_port, STension_pin); //1 is button pressed.
 	//	input.bend_m=get_bend();
-	//	input.IR1_m=get_IR_Flex_U1513();
-	//	printf("%d \n\r",input.IR1_m);
-	//	input.IR2_m=get_IR_U5();
-	//	printf("%d \n\r",input.IR2_m);
+	input.IR1_m=get_IR_Flex_U1513();
+		//printf("%d \n\r",input.IR1_m);
+	input.IR2_m=get_IR_U5();
+		//printf("%d \n\r",input.IR2_m);
 
 	// Get accel data from master side
 	//get_IMU_measurement();
@@ -1260,7 +1277,9 @@ int get_IR_Flex_U1513(void)
 {
 	//initalize adc
 	ADMUX &= (1 << REFS0);				 //choose reference and clear analog pins, AVcc chosen as AREF
-	ADMUX |= (1 << MUX0);				 //choose analog pin ADC1 connected to Flex/IR2
+	ADCSRB |= (1 << ACME);
+	ADCSRA &= ~(1 << ADEN);
+	ADMUX |= 0x01;				 //choose analog pin ADC1 connected to Flex/IR2
 	ADCSRA = (1 << ADEN) | (1 << ADPS0); //ADEN set makes ADC enabled, ADPS0..2 selects ADC clock vs system clock, here divided by 2
 
 	//when the following code was in main, while loop started here
@@ -1294,7 +1313,7 @@ int get_bend(void)
 	     //initalize adc
 		ADMUX &= (1<<REFS0); //choose reference and clear analog pins
 		ADMUX |= 0x01;//voltage reference selection AVcc at AREF and choose analog pin - ADC1
-		ADCSRA = (1<<ADEN) |    (1<<ADPS0); //set up a/d (aden adc enable, )
+		ADCSRA = (1<<ADEN) | (1<<ADPS0); //set up a/d (aden adc enable, )
 
 		//when the following code was in main, while loop started here
 		ADCSRA |= (1<<ADSC);//start adc conversion to sample sensor with led off

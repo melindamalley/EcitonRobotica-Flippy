@@ -724,6 +724,32 @@ int main(void)
 	uint8_t count = 0;
 	unsigned char toggle = 0;	
 
+	power_state=1;
+	sleep_mode=1;
+	toggle_wakeup=0;
+	
+		
+	printf("\n\r\n\r\n\r\n\r--Flippy v0.2 startup--\n\r");
+	if(MASTER==1)
+	printf("--in MASTER mode---\n\r\n\r");
+	else	
+	printf("--in SLAVE mode---\n\r\n\r");
+
+	//twi bit rate set 
+  	TWBR=0x04;
+	//setup accell
+
+
+	//dock motor off
+	DDRB |= (1<<6);
+	PORTB &= ~(1<<6);
+	OCR0B = 0;	
+	
+	//bend motor off
+	DDRB |= (1<<7);
+	PORTB &= ~(1<<7);
+	OCR0A = 0;
+
 	//master/slave startup
 	if(MASTER==1)
 	{
