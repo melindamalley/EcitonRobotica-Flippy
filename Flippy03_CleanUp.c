@@ -11,8 +11,8 @@
 #include <stdio.h>
 #include <avr/interrupt.h>
 
-#define MASTER 0   // 1 for Master, 0 for Slave
-#define PCBTESTMODE 0 // 1 for running tests, 0 for experiments
+#define MASTER 1   // 1 for Master, 0 for Slave
+#define PCBTESTMODE 1 // 1 for running tests, 0 for experiments
 
 #define FOSC 8000000 // oscillator clock frequency, page 164 datasheet, internal RC oscillator clock source selected by fuse bits
 #define BAUD 9600 // baud rate desired
@@ -37,8 +37,6 @@
 #define PWR_MGMT_1 0x6B // should be set to 0 for Accel to be run, see datasheet page 31
 
 // system states
-//#define TEST	0x00
-//#define EXPERIMENT	0x01
 #define SETUP 0x10
 #define FLIP 0x20
 
@@ -46,6 +44,7 @@
 #define REWIND 0x01
 #define SLAVE_GRIPPER 0x02
 #define MASTER_GRIPPER 0x03
+#define FLIPPING1 0x04
 
 #define atmega_slave 0xf0 // // address of the slave board processor, to be renamed to something more meaningful e.g. MCU_slave_address
 #define led_wrt_cmd 0x3A  // led driver write command
@@ -59,7 +58,11 @@
 #define clear(port, pin) (port &= (~pin))			  // clear port pin
 //////////////////////////////////////
 
+//HELPER MACROS
 #define get_switch_input(port, pin) ((port & (1 << pin)) >> pin) //bit shift function to get input from switches
+#define convert_negatives(value) (value>8000) ? (-(value ^ 0xffff)-1):value 	// Convert two's complement for negative values, 0x8010 = -32752 is the lowest
+
+//#define neutral_bend(angle) (angle)
 
 ////////////////
 //SETUP AND DEFINE PINS
@@ -116,9 +119,9 @@
 
 //Flip Parameters:
 
-#define windspd 130
-#define unwindspd 220
-#define gripperspd 180
+#define WINDSPD 130
+#define UNWINDSPD 220
+#define GRIPPER_SPD 180
 
 //Define helper functions
 void setLED(unsigned char red, unsigned char green, unsigned char blue);
@@ -145,19 +148,19 @@ uint8_t system_state = SETUP;
 // Robot Inputs/Sensors
 struct inputs
 {
-	unsigned char switch_power;
 	unsigned char switch_tension_m;
 	unsigned char switch_tension_s;
 	unsigned char switch_S4_m;
 	unsigned char switch_S4_s;
-	int bend_s;
 	int bend_m;
+	int bend_s;
 	int IR1_m;
-	int IR2_m;
 	int IR1_s;
+	int IR2_m;
 	int IR2_s;
 	int accell_m[3];
 	int accell_s[3];
+	unsigned char switch_power;
 };
 
 //Define Robot Outputs
@@ -774,8 +777,10 @@ int main(void)
 	init();
 	sei();
 	uint8_t state = 0;
-	uint8_t count = 0;
-	unsigned char toggle = 0;
+	uint8_t count = 0; //counter for open loop control bits - timing of grippers etc. 
+	unsigned char toggle = 0; //toggle bit
+	double bend_angle=0; 
+	char flipdir=0; //direction of flipping, reference with pcb facing and forward (1) being to the right
 
 	while (1){
 //////////////////////////////////////////////////////////////////
@@ -786,9 +791,9 @@ int main(void)
 			//	        setLED(50,50,50);
 			//	        _delay_ms(500);
 			//	        setLED(0,0,0);
-			/* 
+			 
 			output.speed_dock_m5_m = 0;
-			if (input.switch_S4_s == 0){
+			if (input.switch_S4_m == 0){
 				setLED(50,50,50);
 				output.speed_bend_m3_m = 100;
 				output.direction_bend_m3_m=0;
@@ -796,7 +801,7 @@ int main(void)
 			else{
 				output.speed_bend_m3_m = 0;
 				setLED(0,0,0);
-			} */
+				}
 			//printf("%#08X \n\r", ((EXPERIMENT&SETUP)& 0x0F));
 			//output.speed_dock_m5_m=225;
 			//output.direction_dock_m5_m=0;
@@ -805,7 +810,7 @@ int main(void)
 			//output.vibration_m=1;
 			//printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
 			//printf("%#08X \n\r", IMU_ADDRESS);
-			//printf("IR %d %d \n\r", input.IR1_m, input.IR2_m);
+			//printf("IR %d %d \n\r", inputs(7), inputs(8));
 			//input.IR2_m=get_IR_U5();
 			//input.IR1_m=get_IR_Flex_U1513();
 			//printf("IR %d \n\r", input.IR1_m); //for bend sensor reading only - note change function name to reflect.
@@ -930,13 +935,13 @@ int main(void)
 								output.led_s[0]=20;
 								output.led_s[1]=0;
 								output.direction_dock_m5_s=0;
-								output.speed_dock_m5_s=0.7*gripperspd;
+								output.speed_dock_m5_s=0.7*GRIPPER_SPD;
 								}
 							else if (input.switch_S4_s==0){
 								output.led_s[0]=0;
 								output.led_s[2]=20;
 								output.direction_dock_m5_s=1;
-								output.speed_dock_m5_s=gripperspd;
+								output.speed_dock_m5_s=GRIPPER_SPD;
 								}
 							else{
 								output.led_s[0]=0;
@@ -952,7 +957,7 @@ int main(void)
 								output.led_m[0]=0;
 								output.led_m[1]=0;
 								output.led_s[0]=0;
-								state=0;
+								state=FLIPPING1;
 								system_state=FLIP;
 								_delay_ms(9000);
 								break;
@@ -961,13 +966,13 @@ int main(void)
 								output.led_m[0]=20;
 								output.led_m[1]=0;
 								output.direction_dock_m5_m=0;
-								output.speed_dock_m5_m=0.7*gripperspd;
+								output.speed_dock_m5_m=0.7*GRIPPER_SPD;
 							}
 							else if (input.switch_S4_s==0){
 								output.led_m[0]=0;
 								output.led_m[1]=20;
 								output.direction_dock_m5_m=1;
-								output.speed_dock_m5_m=gripperspd;
+								output.speed_dock_m5_m=GRIPPER_SPD;
 							}
 							else{
 								output.led_m[0]=0;
@@ -978,6 +983,71 @@ int main(void)
 					}
 				break; //end SETUP
 				case FLIP: //Normal locomotion
+					switch(state){
+						case FLIPPING1:	//flipping 
+  							output.led_m[0]=20;
+							output.direction_dock_m5_m=1; //spin the opposite dock motor to prevent attaching
+							output.speed_dock_m5_m=GRIPPER_SPD;
+								flipdir=0;
+								if (toggle<2){ //Do not attach before the going through neutral
+									if(toggle==0){
+										output.direction_bend_m3_m=1; //master going back, slave going forward
+										output.direction_bend_m3_s=0;
+										output.speed_bend_m3_s=WINDSPD;
+										output.speed_bend_m3_m=UNWINDSPD; //first unwind at a set speed
+										count++;
+										}
+									else{
+										flipbend(flipdir, 10);
+										}
+									bend_angle=get_accel_diff();
+									if((bend_angle>170)&&(bend_angle<200)){
+										toggle=2;
+										//printf("toggle");
+										output.led_m[2]=20;
+										}
+									if(count>12){
+										toggle=1;
+										count=0;
+										}
+									if((toggle==1)&&(bend_angle<10)){
+										toggle=2;
+										}
+									}
+								if (toggle==2){
+									if (input.switch_S4_m==0){
+										count++;
+										if (count>2){
+											//zero everything
+											output.speed_bend_m3_m=0;
+											output.speed_bend_m3_s=0;
+											output.speed_dock_m5_m=0;
+											output.led_m[0]=0;
+											output.led_m[2]=0;
+											count=0;
+											toggle=0;
+											state=3;
+											break;
+											}
+										}
+									//else if(get_accel_diff()<0.17){
+										//flipbend(-(flipdir-1),10)
+										//}
+									else{
+										flipbend(flipdir,10);
+										}
+								}
+								//else{
+								//output.speed_bend_m3_m=0;
+								//output.speed_bend_m3_s=0;
+								//output.led_m[0]=0;
+								//count=0;
+								//toggle=0;
+								//printf("%d\n\r",input.bend_m);
+								//state=3;
+								//}
+								break;
+					}
 				break; //end FLIP
 			}
 		}
@@ -1018,21 +1088,6 @@ int main(void)
 
 						output.direction_dock_m5_s=TWDR;
 						set_M5(output.direction_dock_m5_s, output.speed_dock_m5_s);
-						/*	
-						if(TWDR==0)
-						{
-						DDRB |= (1<<6); //old HB2-2 is PC2, now PB6
-						PORTB &= ~(1<<6);
-						OCR0B = dock_speed;
-
-						}
-						else
-						{
-							DDRB |= (1<<6); //old HB2-2 is PC2, now PB6
-							PORTB |= (1<<6);
-							OCR0B = 255-dock_speed; //HB2-1
-						}
-						*/
 
 					}
 					else if(rx_data_count==3) //M3 direction
@@ -1040,21 +1095,7 @@ int main(void)
 					//M3 direction
 					output.direction_bend_m3_s=TWDR;
 					set_M3(output.direction_bend_m3_s, output.speed_bend_m3_s);
-						/*
-						if(TWDR==0)
-						{
-						DDRB |= (1<<7); //old HB1-2 is PC3, now PB7
-						PORTB &= ~(1<<7);
-						OCR0A = output.speed_bend_m3_s;
 
-						}
-						else
-						{
-							DDRB |= (1<<7); //old HB1-2 is PC3, now PB7
-							PORTB |= (1<<7);
-							OCR0A = 255-output.speed_bend_m3_s;
-						}
-						*/
 					}
 					else if(rx_data_count==4)
 					{
@@ -1220,7 +1261,7 @@ void master_input_update()
 		//printf("%d \n\r",input.IR2_m);
 
 	// Get accel data from master side
-	//get_IMU_measurement();
+	get_IMU_measurement();
 }
 
 ///////////////////INPUT READ FUNCTIONS
@@ -1236,27 +1277,21 @@ void get_IMU_measurement(void)
 	int y = ((i2c_read_accell(IMU_ADDRESS, ACCEL_YOUT_H) << 8) & 0xff00) + (i2c_read_accell(IMU_ADDRESS, ACCEL_YOUT_L) & 0x00ff);
 	int z = ((i2c_read_accell(IMU_ADDRESS, ACCEL_ZOUT_H) << 8) & 0xff00) + (i2c_read_accell(IMU_ADDRESS, ACCEL_ZOUT_L) & 0x00ff);
 
-	// Convert two's complement for negative values, 0x8010 = -32752 is the lowest
-	if (x > 0x8000)
-	{
-		x = x ^ 0xffff;
-		x = -x - 1;
-	}
-	if (y > 0x8000)
-	{
-		y = y ^ 0xffff;
-		y = -y - 1;
-	}
-	if (z > 0x8000)
-	{
-		z = z ^ 0xffff;
-		z = -z - 1;
-	}
+	x=convert_negatives(x);
+	y=convert_negatives(y);
+	z=convert_negatives(z);
 
 	// Update values input to MCU from IMU
-	input.accell_m[0] = x;
-	input.accell_m[1] = y;
-	input.accell_m[2] = z;
+	if (MASTER) {
+		input.accell_m[0] = x;
+		input.accell_m[1] = y;
+		input.accell_m[2] = z;
+		}
+	else {
+		input.accell_s[0] = x;
+		input.accell_s[1] = y;
+		input.accell_s[2] = z;
+		}
 }
 
 int switch_power(void) //Rewrite more efficiently? e.g. as a macro? 
@@ -1386,4 +1421,37 @@ void set_M3(unsigned char dir, unsigned char speed)
 		set(M3_port, M3_pin);
 		M3_PWM = 255 - speed; //sets PWM for OCR0B (PD5) - in1/in3 on hbridge - motor goes backward on low portion
 	}
+}
+
+/////////////////utility functions 
+
+void flipbend(char side, char p){
+	//p a percentage to vary speed. 
+	if (side==1){ //master side
+			output.direction_bend_m3_m=0; //master going forward, slave going back
+			output.direction_bend_m3_s=1;
+		if(input.switch_tension_m==0){
+			output.speed_bend_m3_s=UNWINDSPD*p/10;
+		}
+		else {
+			output.speed_bend_m3_s=0;
+		}
+	output.speed_bend_m3_m=WINDSPD*p/10;	
+	}
+	else{ //slave side
+		output.direction_bend_m3_m=1; //slave going forward, master going back
+		output.direction_bend_m3_s=0;
+		if(input.switch_tension_s==0){
+			output.speed_bend_m3_m=UNWINDSPD*p/10;
+		}
+		else {
+			output.speed_bend_m3_m=0;
+		}
+	output.speed_bend_m3_s=WINDSPD*p/10;
+	}
+}
+
+double get_accel_diff(void){
+		double diff=abs(atan2((input.accell_s[0]),(input.accell_s[1]))*180/3.14159-atan2((input.accell_m[0]),(input.accell_m[1]))*180/3.14159);
+		return(diff);
 }

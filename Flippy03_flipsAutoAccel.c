@@ -30,6 +30,7 @@
 #define clear(port, pin) (port &= (~pin))			  // clear port pin
 //////////////////////////////////////
 
+//Helper Macros
 #define get_switch_input(port, pin) ((port & (1 << pin)) >> pin) //bit shift function to get input from switches
 
 //Motor M5 direction is PB6 and speed/PWM is OCR0B (PD5)
