@@ -123,6 +123,13 @@
 #define UNWINDSPD 220
 #define GRIPPER_SPD 180
 
+//Touch Sensor Thresholds
+
+#define SURFACE_SEEN 900
+#define TOUCHING 700
+#define CONNECTED 600
+#define WELL_CONNECTED 500
+
 //Define helper functions
 void setLED(unsigned char red, unsigned char green, unsigned char blue);
 void set_M3(unsigned char dir, unsigned char speed);
@@ -810,7 +817,7 @@ int main(void)
 			//output.vibration_m=1;
 			//printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
 			//printf("%#08X \n\r", IMU_ADDRESS);
-			//printf("IR %d %d \n\r", inputs(7), inputs(8));
+			printf("IR %d %d \n\r", input.IR1_m, input.IR2_m);
 			//input.IR2_m=get_IR_U5();
 			//input.IR1_m=get_IR_Flex_U1513();
 			//printf("IR %d \n\r", input.IR1_m); //for bend sensor reading only - note change function name to reflect.
