@@ -12,7 +12,7 @@
 #include <avr/interrupt.h>
 
 #define MASTER 1   // 1 for Master, 0 for Slave
-#define PCBTESTMODE 1 // 1 for running tests, 0 for experiments
+#define PCBTESTMODE 0 // 1 for running tests, 0 for experiments
 
 #define FOSC 8000000 // oscillator clock frequency, page 164 datasheet, internal RC oscillator clock source selected by fuse bits
 #define BAUD 9600 // baud rate desired
@@ -140,7 +140,7 @@ int switch_S4(void);
 int get_bend(void);
 int get_IR_Flex_U1513(void);
 int get_IR_U5(void);
-void get_IMU_measurement(void);
+void get_IMU_measurement(unsigned char self);
 void master_output_update(void);
 void master_input_update(void);
 void flipbend(char side, char p);
@@ -816,8 +816,9 @@ int main(void)
 			//output.speed_bend_m3_m=225;
 			//output.vibration_m=1;
 			//printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
+			printf("s %d %d %d \n\r",input.accell_s[0],input.accell_s[1], input.accell_s[2]);
 			//printf("%#08X \n\r", IMU_ADDRESS);
-			printf("IR %d %d \n\r", input.IR1_m, input.IR2_m);
+			//printf("IR %d %d \n\r", input.IR1_m, input.IR2_m);
 			//input.IR2_m=get_IR_U5();
 			//input.IR1_m=get_IR_Flex_U1513();
 			//printf("IR %d \n\r", input.IR1_m); //for bend sensor reading only - note change function name to reflect.
@@ -839,8 +840,6 @@ int main(void)
 			_delay_ms(20);
 			//setLED(0,0,0);
 		/////
-
-			printf("IR %d %d \n\r", input.IR1_s, input.IR2_s);
 			
 			switch (system_state){
 				case SETUP: //Experiment Set-up and Reset (in case the robot gets stuck)
@@ -927,6 +926,8 @@ int main(void)
 							break;
 						case SLAVE_GRIPPER: //attach or detach slave side
 							output.led_m[0]=20;
+							output.led_s[0]=0;
+							output.led_s[1]=0;
 							//Both switches together move to the next state
 							if ((input.switch_S4_m==0)&&(input.switch_S4_s==0)){
 								output.speed_dock_m5_s=0;
@@ -962,7 +963,7 @@ int main(void)
 								output.speed_dock_m5_s=0;
 								output.speed_dock_m5_m=0;
 								output.led_m[0]=0;
-								output.led_m[1]=0;
+								output.led_m[2]=0;
 								output.led_s[0]=0;
 								state=FLIPPING1;
 								system_state=FLIP;
@@ -971,13 +972,13 @@ int main(void)
 							}
 							else if (input.switch_S4_m==0){
 								output.led_m[0]=20;
-								output.led_m[1]=0;
+								output.led_m[2]=0;
 								output.direction_dock_m5_m=0;
 								output.speed_dock_m5_m=0.7*GRIPPER_SPD;
 							}
 							else if (input.switch_S4_s==0){
 								output.led_m[0]=0;
-								output.led_m[1]=20;
+								output.led_m[2]=20;
 								output.direction_dock_m5_m=1;
 								output.speed_dock_m5_m=GRIPPER_SPD;
 							}
@@ -1267,29 +1268,33 @@ void master_input_update()
 	input.IR2_m=get_IR_U5();
 		//printf("%d \n\r",input.IR2_m);
 
-	// Get accel data from master side
-	get_IMU_measurement();
+	get_IMU_measurement(1); 	// Get accel data from master side
+	get_IMU_measurement(0);		// Get accel data from slave side
 }
 
 ///////////////////INPUT READ FUNCTIONS
 
-void get_IMU_measurement(void)
+void get_IMU_measurement(unsigned char self)
 {
 	// Measurement data is stored in two’s complement and Little Endian format.
 	// Measurement range of each axis is from -32752 ~ 32752 decimal in 16-bit output.
 	// 0x8010 is -32752, 0x7ff0 is 32752
 
-	i2c_write_accell(IMU_ADDRESS, PWR_MGMT_1, 0);
-	int x = ((i2c_read_accell(IMU_ADDRESS, ACCEL_XOUT_H) << 8) & 0xff00) + (i2c_read_accell(IMU_ADDRESS, ACCEL_XOUT_L) & 0x00ff);
-	int y = ((i2c_read_accell(IMU_ADDRESS, ACCEL_YOUT_H) << 8) & 0xff00) + (i2c_read_accell(IMU_ADDRESS, ACCEL_YOUT_L) & 0x00ff);
-	int z = ((i2c_read_accell(IMU_ADDRESS, ACCEL_ZOUT_H) << 8) & 0xff00) + (i2c_read_accell(IMU_ADDRESS, ACCEL_ZOUT_L) & 0x00ff);
+	//if master (or slave board in testing mode) is reading for itself, uses IMU_ADDRESS defin. Otherwise, master takes slave address. 
+	int addrs= (self ? IMU_ADDRESS:accell_slave_addrs); 
+
+
+	i2c_write_accell(addrs, PWR_MGMT_1, 0);
+	int x = ((i2c_read_accell(addrs, ACCEL_XOUT_H) << 8) & 0xff00) + (i2c_read_accell(addrs, ACCEL_XOUT_L) & 0x00ff);
+	int y = ((i2c_read_accell(addrs, ACCEL_YOUT_H) << 8) & 0xff00) + (i2c_read_accell(addrs, ACCEL_YOUT_L) & 0x00ff);
+	int z = ((i2c_read_accell(addrs, ACCEL_ZOUT_H) << 8) & 0xff00) + (i2c_read_accell(addrs, ACCEL_ZOUT_L) & 0x00ff);
 
 	x=convert_negatives(x);
 	y=convert_negatives(y);
 	z=convert_negatives(z);
 
 	// Update values input to MCU from IMU
-	if (MASTER) {
+	if (self) {
 		input.accell_m[0] = x;
 		input.accell_m[1] = y;
 		input.accell_m[2] = z;
