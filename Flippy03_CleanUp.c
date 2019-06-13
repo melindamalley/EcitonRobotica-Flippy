@@ -45,6 +45,7 @@
 #define SLAVE_GRIPPER 0x02
 #define MASTER_GRIPPER 0x03
 #define FLIPPING1 0x04
+#define ATTACHING 0x05
 
 #define atmega_slave 0xf0 // // address of the slave board processor, to be renamed to something more meaningful e.g. MCU_slave_address
 #define led_wrt_cmd 0x3A  // led driver write command
@@ -144,6 +145,7 @@ void get_IMU_measurement(unsigned char self);
 void master_output_update(void);
 void master_input_update(void);
 void flipbend(char side, char p);
+void zero_motors(void);
 double get_accel_diff(void);
 
 void init(void);
@@ -787,7 +789,7 @@ int main(void)
 	uint8_t count = 0; //counter for open loop control bits - timing of grippers etc. 
 	unsigned char toggle = 0; //toggle bit
 	double bend_angle=0; 
-	char flipdir=0; //direction of flipping, reference with pcb facing and forward (1) being to the right
+	char flipside=1; //direction of flipping, reference with pcb facing and forward (1) being to the right
 
 	while (1){
 //////////////////////////////////////////////////////////////////
@@ -832,7 +834,7 @@ int main(void)
 	// This is the state for running experiments through the master board
 		else if(MASTER){
 
-		/////First update everything
+		/////First update everything - needed for all states
 			i2c_send();
 			master_output_update();
 			i2c_read();
@@ -993,70 +995,85 @@ int main(void)
 				case FLIP: //Normal locomotion
 					switch(state){
 						case FLIPPING1:	//flipping 
-  							output.led_m[0]=20;
-							output.direction_dock_m5_m=1; //spin the opposite dock motor to prevent attaching
-							output.speed_dock_m5_m=GRIPPER_SPD; //spin the opposite dock motor to prevent attaching
-								flipdir=0;
-								if (toggle<2){ //Toggle condition prevents the robot from attaching to a surface too early
-									if(toggle==0){ 
-										//The robot first unwinds at a set speed to try to undo any overtensioning.
-										//This could possibly be changed to an unwind until no tension condition?
-										output.direction_bend_m3_m=1; //master going back, slave going forward
-										output.direction_bend_m3_s=0;
-										output.speed_bend_m3_s=WINDSPD;
-										output.speed_bend_m3_m=UNWINDSPD; //first unwind at a set speed
-										count++;
-										}
-									else{
-										flipbend(flipdir, 10); //after set time period, flip normally
-										}
-									
-									bend_angle=get_accel_diff(); //Track the robot's angle
+							//flipside - define by the moving gripper
+							//flipside 0: slave side moving, master goes forward, slave side back.
+							//flipside 1: Master side moving, slave side goes forward, master back
+  							
+							//Light up the moving gripper
+							output.led_m[0]=flipside*20;
+							output.led_s[0]=(!flipside)*20;
+
+							//spin the opposite dock motor to prevent attaching
+							output.direction_dock_m5_m=flipside; //1 to go backwards
+							output.direction_dock_m5_s=(!flipside); //1 to go backwards
+
+							output.speed_dock_m5_m=flipside*GRIPPER_SPD; 
+							output.speed_dock_m5_s=(!flipside)*GRIPPER_SPD;
+							
+							//Set direction for bend motors, see guide above
+							output.direction_bend_m3_m=flipside; //0 if forward, 1 is back
+							output.direction_bend_m3_s=(!flipside); //0 if forward, 1 is back
+
+							if (toggle<2){ //Toggle condition prevents the robot from attaching to a surface too early
+								
+								bend_angle=get_accel_diff(); //Track the robot's angle
+
+								//The robot first unwinds at a set speed to try to undo any overtensioning.
+								//This could possibly be changed to an unwind until no tension condition?
+								if(toggle==0){
+									//Set the speeds depending on flipside. 
+									output.speed_bend_m3_m= flipside ? UNWINDSPD:WINDSPD; //flipside 1 will unwind
+									output.speed_bend_m3_s= flipside ? WINDSPD: UNWINDSPD; //flipside 1 will wind
+
+									//Counter for unwind at set speed
+									if (count>12){
+										toggle=1;
+										count=0;
+									}
+									count++;
+								}
+
+								//After set time, switch to unwinding only if tension. 
+								else{
+									flipbend(flipside, 10); //after set time period, flip normally	
 
 									//This is a safeguard condition if the robot does not recognize/doesn't go thru neutral
 									//If the robot is fully bent, it can search for a surface
-									//Haven't had problems - but should this be changed to only be if toggle ==1?
 									if((bend_angle>170)&&(bend_angle<200)){
 										toggle=2;
 										//printf("toggle");
 										output.led_m[2]=20;
-										}
-
-									//Counter for unwind at set speed
-									if(count>12){
-										toggle=1;
-										count=0;
-										}
-									
+									}
+	
 									//Neutral/0 degree position check
-									if((toggle==1)&&(bend_angle<10)){
+									if(bend_angle<10){
 										toggle=2;
+									}
+								}
+							}
+							//Check for surface
+							if (toggle==2){
+								//Check for IR sensors or manual control to switch states
+								if ((input.switch_S4_m==0)|((input.IR1_m<CONNECTED)&(input.IR1_m<CONNECTED))){
+									count++; //Account for noise, make sure the surface is detected twice. 
+									if (count>2){
+										//Turn off motors and LEDS
+										zero_motors();
+										LEDsOff();
+										//Zero Everything
+										count=0;
+										toggle=0;
+										//Switch States
+										state=ATTACHING;
+										break;
 										}
 									}
-								
-								//Check for surface
-								if (toggle==2){
-									if (input.switch_S4_m==0){
-										count++; //Account for noise, make sure the surface is detected twice. 
-										if (count>2){
-											//zero everything
-											output.speed_bend_m3_m=0;
-											output.speed_bend_m3_s=0;
-											output.speed_dock_m5_m=0;
-											output.led_m[0]=0;
-											output.led_m[2]=0;
-											count=0;
-											toggle=0;
-											state=3;
-											break;
-											}
-										}
-									else{
-										flipbend(flipdir,10);
-										}
+								else{
+									flipbend(flipside,10);
 								}
+							}
 
-								break;
+							break;
 					}
 				break; //end FLIP
 			}
@@ -1439,12 +1456,17 @@ void set_M3(unsigned char dir, unsigned char speed)
 
 /////////////////utility functions 
 
+//Function for normal flipping, dependent on tension switches 
+
 void flipbend(char side, char p){
-	//p a percentage to vary speed. 
-	if (side==1){ //master side
-			output.direction_bend_m3_m=0; //master going forward, slave going back
-			output.direction_bend_m3_s=1;
-		if(input.switch_tension_m==0){
+	//p a percentage to vary speed.
+
+	//Set direction for bend motors, see guide above
+	output.direction_bend_m3_m=side; //0 if forward, 1 is back
+	output.direction_bend_m3_s=(!side); //0 if forward, 1 is back
+ 
+	if (side==0){ 
+		if(input.switch_tension_m==1){
 			output.speed_bend_m3_s=UNWINDSPD*p/10;
 		}
 		else {
@@ -1453,9 +1475,7 @@ void flipbend(char side, char p){
 	output.speed_bend_m3_m=WINDSPD*p/10;	
 	}
 	else{ //slave side
-		output.direction_bend_m3_m=1; //slave going forward, master going back
-		output.direction_bend_m3_s=0;
-		if(input.switch_tension_s==0){
+		if(input.switch_tension_s==1){
 			output.speed_bend_m3_m=UNWINDSPD*p/10;
 		}
 		else {
@@ -1465,7 +1485,28 @@ void flipbend(char side, char p){
 	}
 }
 
+
+//Find the angle between the boards (amount of bend) independent of orientation. 
+
 double get_accel_diff(void){
 		double diff=abs(atan2((input.accell_s[0]),(input.accell_s[1]))*180/3.14159-atan2((input.accell_m[0]),(input.accell_m[1]))*180/3.14159);
 		return(diff);
+}
+
+//Zero Motors
+
+void zero_motors(void){
+	output.speed_bend_m3_m=0;
+	output.speed_bend_m3_s=0;
+	output.speed_dock_m5_m=0;
+	output.speed_dock_m5_s=0;
+}
+
+void LEDsOff(void){
+	output.led_m[0]=0; //master side
+	output.led_m[1]=0;
+	output.led_m[2]=0;
+	output.led_s[0]=0; //slave side
+	output.led_s[1]=0;
+	output.led_s[2]=0;
 }
