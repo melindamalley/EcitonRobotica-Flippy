@@ -995,10 +995,12 @@ int main(void)
 						case FLIPPING1:	//flipping 
   							output.led_m[0]=20;
 							output.direction_dock_m5_m=1; //spin the opposite dock motor to prevent attaching
-							output.speed_dock_m5_m=GRIPPER_SPD;
+							output.speed_dock_m5_m=GRIPPER_SPD; //spin the opposite dock motor to prevent attaching
 								flipdir=0;
-								if (toggle<2){ //Do not attach before the going through neutral
-									if(toggle==0){
+								if (toggle<2){ //Toggle condition prevents the robot from attaching to a surface too early
+									if(toggle==0){ 
+										//The robot first unwinds at a set speed to try to undo any overtensioning.
+										//This could possibly be changed to an unwind until no tension condition?
 										output.direction_bend_m3_m=1; //master going back, slave going forward
 										output.direction_bend_m3_s=0;
 										output.speed_bend_m3_s=WINDSPD;
@@ -1006,25 +1008,36 @@ int main(void)
 										count++;
 										}
 									else{
-										flipbend(flipdir, 10);
+										flipbend(flipdir, 10); //after set time period, flip normally
 										}
-									bend_angle=get_accel_diff();
+									
+									bend_angle=get_accel_diff(); //Track the robot's angle
+
+									//This is a safeguard condition if the robot does not recognize/doesn't go thru neutral
+									//If the robot is fully bent, it can search for a surface
+									//Haven't had problems - but should this be changed to only be if toggle ==1?
 									if((bend_angle>170)&&(bend_angle<200)){
 										toggle=2;
 										//printf("toggle");
 										output.led_m[2]=20;
 										}
+
+									//Counter for unwind at set speed
 									if(count>12){
 										toggle=1;
 										count=0;
 										}
+									
+									//Neutral/0 degree position check
 									if((toggle==1)&&(bend_angle<10)){
 										toggle=2;
 										}
 									}
+								
+								//Check for surface
 								if (toggle==2){
 									if (input.switch_S4_m==0){
-										count++;
+										count++; //Account for noise, make sure the surface is detected twice. 
 										if (count>2){
 											//zero everything
 											output.speed_bend_m3_m=0;
@@ -1038,22 +1051,11 @@ int main(void)
 											break;
 											}
 										}
-									//else if(get_accel_diff()<0.17){
-										//flipbend(-(flipdir-1),10)
-										//}
 									else{
 										flipbend(flipdir,10);
 										}
 								}
-								//else{
-								//output.speed_bend_m3_m=0;
-								//output.speed_bend_m3_s=0;
-								//output.led_m[0]=0;
-								//count=0;
-								//toggle=0;
-								//printf("%d\n\r",input.bend_m);
-								//state=3;
-								//}
+
 								break;
 					}
 				break; //end FLIP
