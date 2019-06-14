@@ -46,6 +46,7 @@
 #define MASTER_GRIPPER 0x03
 #define FLIPPING1 0x04
 #define ATTACHING 0x05
+#define DETATCHING 0x06
 
 #define atmega_slave 0xf0 // // address of the slave board processor, to be renamed to something more meaningful e.g. MCU_slave_address
 #define led_wrt_cmd 0x3A  // led driver write command
@@ -146,6 +147,7 @@ void master_output_update(void);
 void master_input_update(void);
 void flipbend(char side, char p);
 void zero_motors(void);
+void LEDsOff(void);
 double get_accel_diff(void);
 
 void init(void);
@@ -1054,7 +1056,8 @@ int main(void)
 							//Check for surface
 							if (toggle==2){
 								//Check for IR sensors or manual control to switch states
-								if ((input.switch_S4_m==0)|((input.IR1_m<CONNECTED)&(input.IR1_m<CONNECTED))){
+								if (flipside ? (input.switch_S4_m==0)|((input.IR1_m<CONNECTED)&(input.IR1_m<CONNECTED)):
+								(input.switch_S4_s==0)|((input.IR1_s<CONNECTED)&(input.IR1_s<CONNECTED))){
 									count++; //Account for noise, make sure the surface is detected twice. 
 									if (count>2){
 										//Turn off motors and LEDS
@@ -1073,7 +1076,42 @@ int main(void)
 								}
 							}
 
-							break;
+						break;
+						case ATTACHING:
+							//LED indicates state
+							output.led_m[1]=flipside*20;
+							output.led_s[1]=(!flipside)*20;
+
+							//Make sure bend motors are off
+							output.speed_bend_m3_s=0;
+							output.speed_bend_m3_m=0;
+
+							//Set direction and speed for grippers, depending on flipside. 
+							output.direction_dock_m5_m=0;
+							output.direction_dock_m5_s=0;
+
+							output.speed_dock_m5_m=flipside*0.7*GRIPPER_SPD;
+							output.speed_dock_m5_s=(!flipside)*0.7*GRIPPER_SPD;
+							//Just run the grippers forward for a set time.							
+							if (count>200){
+								//Zero everything
+								count=0;
+								output.led_m[1]=0;
+								output.led_s[1]=0;
+								output.speed_dock_m5_m=0;
+								output.speed_dock_m5_s=0;
+
+								//check current orientation of boards to have an initial bend position as a reference for detaching
+								bend_angle=atan2((input.accell_m[0]),(input.accell_m[1]))*180/3.14159;
+								//printf("%d \n\r", (int)m_angle);
+								//bend_angle=get_accel_diff();
+
+								flipside=(!flipside); //switch sides with moving gripper
+								state=DETATCHING;	//New state
+								break;
+							}
+							count++;
+						break;
 					}
 				break; //end FLIP
 			}
