@@ -46,7 +46,7 @@
 #define MASTER_GRIPPER 0x03
 #define FLIPPING1 0x04
 #define ATTACHING 0x05
-#define DETATCHING 0x06
+#define DETACHING 0x06
 
 #define atmega_slave 0xf0 // // address of the slave board processor, to be renamed to something more meaningful e.g. MCU_slave_address
 #define led_wrt_cmd 0x3A  // led driver write command
@@ -63,6 +63,7 @@
 //HELPER MACROS
 #define get_switch_input(port, pin) ((port & (1 << pin)) >> pin) //bit shift function to get input from switches
 #define convert_negatives(value) (value>8000) ? (-(value ^ 0xffff)-1):value 	// Convert two's complement for negative values, 0x8010 = -32752 is the lowest
+#define rad2deg(rad) rad*180/3.14159 //Convert radians to degrees
 
 //#define neutral_bend(angle) (angle)
 
@@ -131,6 +132,10 @@
 #define TOUCHING 700
 #define CONNECTED 600
 #define WELL_CONNECTED 500
+
+//Other Useful Variables
+#define PI 3.14159
+#define RAD2DEG 180/PI 
 
 //Define helper functions
 void setLED(unsigned char red, unsigned char green, unsigned char blue);
@@ -790,7 +795,8 @@ int main(void)
 	uint8_t state = 0;
 	uint8_t count = 0; //counter for open loop control bits - timing of grippers etc. 
 	unsigned char toggle = 0; //toggle bit
-	double bend_angle=0; 
+	double bend_angle=0; //used for recording the angle of the robot (and angle of the grippers during detaching)
+	double init_angle=0; //used as a reference angle during detaching
 	char flipside=1; //direction of flipping, reference with pcb facing and forward (1) being to the right
 
 	while (1){
@@ -1101,16 +1107,79 @@ int main(void)
 								output.speed_dock_m5_m=0;
 								output.speed_dock_m5_s=0;
 
-								//check current orientation of boards to have an initial bend position as a reference for detaching
-								bend_angle=atan2((input.accell_m[0]),(input.accell_m[1]))*180/3.14159;
-								//printf("%d \n\r", (int)m_angle);
-								//bend_angle=get_accel_diff();
+								state=DETACHING;	//New state
+
+								//Prep for next state
 
 								flipside=(!flipside); //switch sides with moving gripper
-								state=DETATCHING;	//New state
+
+								//check current orientation of boards to have an initial bend position as a reference for detaching
+								init_angle=flipside ? rad2deg(atan2((input.accell_m[0]),(input.accell_m[1]))):rad2deg(atan2((input.accell_s[0]),(input.accell_s[1])));
 								break;
 							}
 							count++;
+						break;
+						case DETACHING: //detaching the master side
+							//Detaching works by running the grippers backward for a set period of time and then trying to flip
+
+							//Keep bend motors default off
+							output.speed_bend_m3_m=0;
+							output.speed_bend_m3_s=0;
+							//Output LED on the moving gripper
+							output.led_m[2]=flipside*20;
+							output.led_s[2]=(!flipside)*20;
+							//set dock motors to go backwards
+							output.direction_dock_m5_m=1;
+							output.direction_dock_m5_s=1;
+
+							//set motors based on flipside - 0 = slave side moving gripper, 1 = master side moving
+							output.speed_dock_m5_m=flipside*GRIPPER_SPD;
+							output.speed_dock_m5_s=(!flipside)*GRIPPER_SPD;
+
+							count++;
+
+							if (toggle==0){
+								//Check current angle of detaching gripper
+								bend_angle= flipside ? rad2deg(atan2((input.accell_m[0]),(input.accell_m[1]))):rad2deg(atan2((input.accell_s[0]),(input.accell_s[1])));
+								//find the change in angle
+								bend_angle=abs(bend_angle-init_angle);
+								//convert in case the angle went from 360 to 0
+								if (bend_angle>300){
+								bend_angle=(360-bend_angle);
+								}
+								//Angle should change at least 30 degrees before robot can consider itself detached.
+								if (bend_angle>30){
+									toggle=1;
+								}
+							}
+							//change states once no surface is detected (or manually with switches)
+							//and if bend angle has changed (toggle condition)
+							else if (flipside ? (input.switch_S4_m==0)|((input.IR1_m>TOUCHING)&(input.IR1_m>TOUCHING)):
+								(input.switch_S4_s==0)|((input.IR1_s>TOUCHING)&(input.IR1_s>TOUCHING))){
+								//change state
+								state=FLIPPING1;
+								//Zero motors
+								zero_motors();
+								//Zero LEDS
+								output.led_m[2]=0;
+								output.led_s[2]=0;
+								//Reset counter and toggle
+								count=0;
+								toggle=0;
+								_delay_ms(1000);
+								break;
+							}
+							//unwind for 20 ticks
+							if (count>20){
+								//then try to flip for 3 ticks
+								if (count<23){
+									flipbend(flipside,10);
+								}
+								else{
+								//reset count
+								count=0;
+								}
+							}
 						break;
 					}
 				break; //end FLIP
