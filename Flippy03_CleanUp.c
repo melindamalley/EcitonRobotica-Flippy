@@ -1050,7 +1050,8 @@ int main(void)
 									if((bend_angle>170)&&(bend_angle<200)){
 										toggle=2;
 										//printf("toggle");
-										output.led_m[2]=20;
+										output.led_m[2]=flipside*20;
+										output_led_s[2]=(!flipside)*20;
 									}
 	
 									//Neutral/0 degree position check
@@ -1107,14 +1108,15 @@ int main(void)
 								output.speed_dock_m5_m=0;
 								output.speed_dock_m5_s=0;
 
-								state=DETACHING;	//New state
-
 								//Prep for next state
 
 								flipside=(!flipside); //switch sides with moving gripper
 
 								//check current orientation of boards to have an initial bend position as a reference for detaching
 								init_angle=flipside ? rad2deg(atan2((input.accell_m[0]),(input.accell_m[1]))):rad2deg(atan2((input.accell_s[0]),(input.accell_s[1])));
+								
+								state=DETACHING;	//New state
+								
 								break;
 							}
 							count++;
@@ -1137,6 +1139,7 @@ int main(void)
 							output.speed_dock_m5_s=(!flipside)*GRIPPER_SPD;
 
 							count++;
+							//printf("%d \n\r", count); 
 
 							if (toggle==0){
 								//Check current angle of detaching gripper
@@ -1152,8 +1155,8 @@ int main(void)
 									toggle=1;
 								}
 							}
+							//if bend angle has changed (toggle condition)
 							//change states once no surface is detected (or manually with switches)
-							//and if bend angle has changed (toggle condition)
 							else if (flipside ? (input.switch_S4_m==0)|((input.IR1_m>TOUCHING)&(input.IR1_m>TOUCHING)):
 								(input.switch_S4_s==0)|((input.IR1_s>TOUCHING)&(input.IR1_s>TOUCHING))){
 								//change state
@@ -1166,13 +1169,13 @@ int main(void)
 								//Reset counter and toggle
 								count=0;
 								toggle=0;
-								_delay_ms(1000);
+								_delay_ms(500); //just give the robot some time, probably doesn't need to be this long
 								break;
 							}
 							//unwind for 20 ticks
 							if (count>20){
 								//then try to flip for 3 ticks
-								if (count<23){
+								if (count<25){
 									flipbend(flipside,10);
 								}
 								else{
