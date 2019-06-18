@@ -128,10 +128,14 @@
 
 //Touch Sensor Thresholds
 
-#define SURFACE_SEEN 900
-#define TOUCHING 700
-#define CONNECTED 600
-#define WELL_CONNECTED 500
+//Individual Sensors
+//#define SURFACE_SEEN 900
+//#define TOUCHING 700
+//#define CONNECTED 600
+//#define WELL_CONNECTED 500
+
+#define DETACH_THRESH 1840
+#define ATTACH_THRESH 1200
 
 //Other Useful Variables
 #define PI 3.14159
@@ -826,9 +830,9 @@ int main(void)
 			//output.speed_bend_m3_m=225;
 			//output.vibration_m=1;
 			//printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
-			printf("s %d %d %d \n\r",input.accell_s[0],input.accell_s[1], input.accell_s[2]);
+			//printf("s %d %d %d \n\r",input.accell_s[0],input.accell_s[1], input.accell_s[2]);
 			//printf("%#08X \n\r", IMU_ADDRESS);
-			//printf("IR %d %d \n\r", input.IR1_m, input.IR2_m);
+			printf("IR %d %d \n\r", input.IR1_m, input.IR2_m);
 			//input.IR2_m=get_IR_U5();
 			//input.IR1_m=get_IR_Flex_U1513();
 			//printf("IR %d \n\r", input.IR1_m); //for bend sensor reading only - note change function name to reflect.
@@ -945,6 +949,11 @@ int main(void)
 								output.led_s[0]=0;
 								output.led_s[2]=0;
 								output.led_m[0]=0;
+
+								//Update outputs before the state change and delay. 
+								i2c_send();
+								master_output_update();
+
 								state=MASTER_GRIPPER;
 								_delay_ms(2000);
 								break;
@@ -975,6 +984,11 @@ int main(void)
 								output.led_m[0]=0;
 								output.led_m[2]=0;
 								output.led_s[0]=0;
+
+								//Update outputs before the state change and delay. 
+								i2c_send();
+								master_output_update();
+
 								state=FLIPPING1;
 								system_state=FLIP;
 								_delay_ms(9000);
@@ -1051,7 +1065,7 @@ int main(void)
 										toggle=2;
 										//printf("toggle");
 										output.led_m[2]=flipside*20;
-										output_led_s[2]=(!flipside)*20;
+										output.led_s[2]=(!flipside)*20;
 									}
 	
 									//Neutral/0 degree position check
@@ -1063,8 +1077,8 @@ int main(void)
 							//Check for surface
 							if (toggle==2){
 								//Check for IR sensors or manual control to switch states
-								if (flipside ? (input.switch_S4_m==0)|((input.IR1_m<CONNECTED)&(input.IR1_m<CONNECTED)):
-								(input.switch_S4_s==0)|((input.IR1_s<CONNECTED)&(input.IR1_s<CONNECTED))){
+								if (flipside ? (input.switch_S4_m==0)|((input.IR1_m+input.IR1_m)<ATTACH_THRESH):
+								(input.switch_S4_s==0)|((input.IR1_s+input.IR1_s)<ATTACH_THRESH)){
 									count++; //Account for noise, make sure the surface is detected twice. 
 									if (count>2){
 										//Turn off motors and LEDS
@@ -1157,8 +1171,8 @@ int main(void)
 							}
 							//if bend angle has changed (toggle condition)
 							//change states once no surface is detected (or manually with switches)
-							else if (flipside ? (input.switch_S4_m==0)|((input.IR1_m>TOUCHING)&(input.IR1_m>TOUCHING)):
-								(input.switch_S4_s==0)|((input.IR1_s>TOUCHING)&(input.IR1_s>TOUCHING))){
+							else if (flipside ? (input.switch_S4_m==0)|((input.IR1_m+input.IR1_m)>DETACH_THRESH):
+								(input.switch_S4_s==0)|((input.IR1_s+input.IR1_s)>DETACH_THRESH)){
 								//change state
 								state=FLIPPING1;
 								//Zero motors
@@ -1173,7 +1187,7 @@ int main(void)
 								break;
 							}
 							//unwind for 20 ticks
-							if (count>20){
+							if (count>22){
 								//then try to flip for 3 ticks
 								if (count<25){
 									flipbend(flipside,10);
