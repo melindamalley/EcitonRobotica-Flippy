@@ -12,7 +12,7 @@
 #include <avr/interrupt.h>
 
 #define MASTER 1   // 1 for Master, 0 for Slave
-#define PCBTESTMODE 0 // 1 for running tests, 0 for experiments
+#define PCBTESTMODE 1 // 1 for running tests, 0 for experiments
 
 #define FOSC 8000000 // oscillator clock frequency, page 164 datasheet, internal RC oscillator clock source selected by fuse bits
 #define BAUD 9600 // baud rate desired
@@ -187,14 +187,14 @@ struct inputs
 
 struct outputs
 {
-	uint8_t speed_bend_m3_m;
-	uint8_t speed_bend_m3_s;
-	uint8_t speed_dock_m5_m;
-	uint8_t speed_dock_m5_s;
-	uint8_t direction_dock_m5_m;
-	uint8_t direction_dock_m5_s;
-	uint8_t direction_bend_m3_m;
-	uint8_t direction_bend_m3_s;
+	uint8_t speed_m3_m;
+	uint8_t speed_m3_s;
+	uint8_t speed_m5_m;
+	uint8_t speed_m5_s;
+	uint8_t direction_m5_m;
+	uint8_t direction_m5_s;
+	uint8_t direction_m3_m;
+	uint8_t direction_m3_s;
 	uint8_t led_m[3];
 	uint8_t led_s[3];
 	uint8_t vibration_m;
@@ -547,7 +547,7 @@ int i2c_send()
 		return (-1);
 	}
 
-	TWDR = output.speed_bend_m3_s;
+	TWDR = output.speed_m3_s;
 
 	TWCR = (1 << TWINT) | (1 << TWEN); //Clear the TWINT bit to start transmission of data
 
@@ -561,7 +561,7 @@ int i2c_send()
 		return (-1);
 	}
 
-	TWDR = output.speed_dock_m5_s;
+	TWDR = output.speed_m5_s;
 
 	TWCR = (1 << TWINT) | (1 << TWEN); //start tx of data
 
@@ -577,7 +577,7 @@ int i2c_send()
 		return (-1);
 	}
 
-	TWDR = output.direction_dock_m5_s;
+	TWDR = output.direction_m5_s;
 
 	TWCR = (1 << TWINT) | (1 << TWEN); //start tx of data
 
@@ -592,7 +592,7 @@ int i2c_send()
 		sei();
 		return (-1);
 	}
-	TWDR = output.direction_bend_m3_s;
+	TWDR = output.direction_m3_s;
 
 	TWCR = (1 << TWINT) | (1 << TWEN); //start tx of data
 
@@ -813,21 +813,21 @@ int main(void)
 			//	        _delay_ms(500);
 			//	        setLED(0,0,0);
 			 
-			output.speed_dock_m5_m = 0;
+			output.speed_m3_m = 0;
 			if (input.switch_S4_m == 0){
 				setLED(50,50,50);
-				output.speed_bend_m3_m = 100;
-				output.direction_bend_m3_m=0;
+				output.speed_m5_m = 100;
+				output.direction_m5_m=0;
 			}
 			else{
-				output.speed_bend_m3_m = 0;
+				output.speed_m5_m = 0;
 				setLED(0,0,0);
 				}
 			//printf("%#08X \n\r", ((EXPERIMENT&SETUP)& 0x0F));
-			//output.speed_dock_m5_m=225;
-			//output.direction_dock_m5_m=0;
-			//output.direction_bend_m3_m=1; // 0 positive
-			//output.speed_bend_m3_m=225;
+			//output.speed_m3_m=225;
+			//output.direction_m3_m=0;
+			//output.direction_m5_m=1; // 0 positive
+			//output.speed_m5_m=225;
 			//output.vibration_m=1;
 			//printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
 			//printf("s %d %d %d \n\r",input.accell_s[0],input.accell_s[1], input.accell_s[2]);
@@ -862,10 +862,10 @@ int main(void)
 						case UNWIND: //unwind motors on command
 							output.led_m[1]=20;
 							output.led_s[1]=20;
-							output.speed_bend_m3_m=0;
-							output.speed_bend_m3_s=0;
-							output.speed_dock_m5_m=0;
-							output.speed_dock_m5_s=0;
+							output.speed_m5_m=0;
+							output.speed_m5_s=0;
+							output.speed_m3_m=0;
+							output.speed_m3_s=0;
 
 							if((input.switch_S4_m==0)&(input.switch_S4_s==0)){
 								state=REWIND;
@@ -875,29 +875,29 @@ int main(void)
 								output.led_s[0]=0;
 								output.led_m[1]=0;
 								output.led_s[1]=0;
-								output.speed_bend_m3_m=0;
-								output.speed_bend_m3_s=0;
+								output.speed_m5_m=0;
+								output.speed_m5_s=0;
 								}
 							else if(input.switch_S4_m==0)
 							{
 								output.led_m[0]=30;
 								output.led_m[1]=0;	
-								output.direction_bend_m3_m=1;
-								output.speed_bend_m3_m=100;
+								output.direction_m5_m=1;
+								output.speed_m5_m=100;
 							}
 							else if(input.switch_S4_s==0)
 							{
 								output.led_s[0]=30;	
 								output.led_s[1]=0;
-								output.direction_bend_m3_s=1;
-								output.speed_bend_m3_s=100;
+								output.direction_m5_s=1;
+								output.speed_m5_s=100;
 							} 
 							break;
 						case REWIND: //wind the motors
 
 							//default motors off
-							output.direction_bend_m3_m=0;
-							output.direction_bend_m3_s=0;
+							output.direction_m5_m=0;
+							output.direction_m5_s=0;
 
 							//Make sure the control switch is unpressed before checking again. 
 							if ((input.switch_S4_m==1)&(input.switch_S4_s==1)){
@@ -907,16 +907,16 @@ int main(void)
 							//Main functionality - rewind motors until both tension switches are pressed. 
 							if (toggle==1){
 								if(input.switch_tension_s==0){
-									output.speed_bend_m3_m=60;
+									output.speed_m5_m=60;
 									}
 								else {
-									output.speed_bend_m3_m=0;
+									output.speed_m5_m=0;
 									}
 								if(input.switch_tension_m==0) {
-									output.speed_bend_m3_s=60;
+									output.speed_m5_s=60;
 									}
 								else {
-									output.speed_bend_m3_s=0;
+									output.speed_m5_s=0;
 								}	
 							}
 
@@ -944,8 +944,8 @@ int main(void)
 							output.led_s[1]=0;
 							//Both switches together move to the next state
 							if ((input.switch_S4_m==0)&&(input.switch_S4_s==0)){
-								output.speed_dock_m5_s=0;
-								output.speed_dock_m5_m=0;
+								output.speed_m3_s=0;
+								output.speed_m3_m=0;
 								output.led_s[0]=0;
 								output.led_s[2]=0;
 								output.led_m[0]=0;
@@ -960,27 +960,27 @@ int main(void)
 								}
 							else if (input.switch_S4_m==0){
 								output.led_s[0]=20;
-								output.led_s[1]=0;
-								output.direction_dock_m5_s=0;
-								output.speed_dock_m5_s=0.7*GRIPPER_SPD;
+								output.led_s[2]=0;
+								output.direction_m3_s=0;
+								output.speed_m3_s=0.7*GRIPPER_SPD;
 								}
 							else if (input.switch_S4_s==0){
 								output.led_s[0]=0;
 								output.led_s[2]=20;
-								output.direction_dock_m5_s=1;
-								output.speed_dock_m5_s=GRIPPER_SPD;
+								output.direction_m3_s=1;
+								output.speed_m3_s=GRIPPER_SPD;
 								}
 							else{
 								output.led_s[0]=0;
-								output.led_s[1]=0;
-								output.speed_dock_m5_s=0;
+								output.led_s[2]=0;
+								output.speed_m3_s=0;
 								}
 							break;
 						case MASTER_GRIPPER: //attach or detach master side
 							output.led_s[0]=20;
 							if ((input.switch_S4_m==0)&&(input.switch_S4_s==0)){
-								output.speed_dock_m5_s=0;
-								output.speed_dock_m5_m=0;
+								output.speed_m3_s=0;
+								output.speed_m3_m=0;
 								output.led_m[0]=0;
 								output.led_m[2]=0;
 								output.led_s[0]=0;
@@ -997,19 +997,19 @@ int main(void)
 							else if (input.switch_S4_m==0){
 								output.led_m[0]=20;
 								output.led_m[2]=0;
-								output.direction_dock_m5_m=0;
-								output.speed_dock_m5_m=0.7*GRIPPER_SPD;
+								output.direction_m3_m=0;
+								output.speed_m3_m=0.7*GRIPPER_SPD;
 							}
 							else if (input.switch_S4_s==0){
 								output.led_m[0]=0;
 								output.led_m[2]=20;
-								output.direction_dock_m5_m=1;
-								output.speed_dock_m5_m=GRIPPER_SPD;
+								output.direction_m3_m=1;
+								output.speed_m3_m=GRIPPER_SPD;
 							}
 							else{
 								output.led_m[0]=0;
-								output.led_m[1]=0;
-								output.speed_dock_m5_m=0;
+								output.led_m[2]=0;
+								output.speed_m3_m=0;
 							}
 							break;
 					}
@@ -1026,15 +1026,15 @@ int main(void)
 							output.led_s[0]=(!flipside)*20;
 
 							//spin the opposite dock motor to prevent attaching
-							output.direction_dock_m5_m=flipside; //1 to go backwards
-							output.direction_dock_m5_s=(!flipside); //1 to go backwards
+							output.direction_m3_m=flipside; //1 to go backwards
+							output.direction_m3_s=(!flipside); //1 to go backwards
 
-							output.speed_dock_m5_m=flipside*GRIPPER_SPD; 
-							output.speed_dock_m5_s=(!flipside)*GRIPPER_SPD;
+							output.speed_m3_m=flipside*GRIPPER_SPD; 
+							output.speed_m3_s=(!flipside)*GRIPPER_SPD;
 							
 							//Set direction for bend motors, see guide above
-							output.direction_bend_m3_m=flipside; //0 if forward, 1 is back
-							output.direction_bend_m3_s=(!flipside); //0 if forward, 1 is back
+							output.direction_m5_m=flipside; //0 if forward, 1 is back
+							output.direction_m5_s=(!flipside); //0 if forward, 1 is back
 
 							if (toggle<2){ //Toggle condition prevents the robot from attaching to a surface too early
 								
@@ -1044,8 +1044,8 @@ int main(void)
 								//This could possibly be changed to an unwind until no tension condition?
 								if(toggle==0){
 									//Set the speeds depending on flipside. 
-									output.speed_bend_m3_m= flipside ? UNWINDSPD:WINDSPD; //flipside 1 will unwind
-									output.speed_bend_m3_s= flipside ? WINDSPD: UNWINDSPD; //flipside 1 will wind
+									output.speed_m5_m= flipside ? UNWINDSPD:WINDSPD; //flipside 1 will unwind
+									output.speed_m5_s= flipside ? WINDSPD: UNWINDSPD; //flipside 1 will wind
 
 									//Counter for unwind at set speed
 									if (count>12){
@@ -1104,23 +1104,23 @@ int main(void)
 							output.led_s[1]=(!flipside)*20;
 
 							//Make sure bend motors are off
-							output.speed_bend_m3_s=0;
-							output.speed_bend_m3_m=0;
+							output.speed_m5_s=0;
+							output.speed_m5_m=0;
 
 							//Set direction and speed for grippers, depending on flipside. 
-							output.direction_dock_m5_m=0;
-							output.direction_dock_m5_s=0;
+							output.direction_m3_m=0;
+							output.direction_m3_s=0;
 
-							output.speed_dock_m5_m=flipside*0.7*GRIPPER_SPD;
-							output.speed_dock_m5_s=(!flipside)*0.7*GRIPPER_SPD;
+							output.speed_m3_m=flipside*0.7*GRIPPER_SPD;
+							output.speed_m3_s=(!flipside)*0.7*GRIPPER_SPD;
 							//Just run the grippers forward for a set time.							
 							if (count>200){
 								//Zero everything
 								count=0;
 								output.led_m[1]=0;
 								output.led_s[1]=0;
-								output.speed_dock_m5_m=0;
-								output.speed_dock_m5_s=0;
+								output.speed_m3_m=0;
+								output.speed_m3_s=0;
 
 								//Prep for next state
 
@@ -1139,18 +1139,18 @@ int main(void)
 							//Detaching works by running the grippers backward for a set period of time and then trying to flip
 
 							//Keep bend motors default off
-							output.speed_bend_m3_m=0;
-							output.speed_bend_m3_s=0;
+							output.speed_m5_m=0;
+							output.speed_m5_s=0;
 							//Output LED on the moving gripper
 							output.led_m[2]=flipside*20;
 							output.led_s[2]=(!flipside)*20;
 							//set dock motors to go backwards
-							output.direction_dock_m5_m=1;
-							output.direction_dock_m5_s=1;
+							output.direction_m3_m=1;
+							output.direction_m3_s=1;
 
 							//set motors based on flipside - 0 = slave side moving gripper, 1 = master side moving
-							output.speed_dock_m5_m=flipside*GRIPPER_SPD;
-							output.speed_dock_m5_s=(!flipside)*GRIPPER_SPD;
+							output.speed_m3_m=flipside*GRIPPER_SPD;
+							output.speed_m3_s=(!flipside)*GRIPPER_SPD;
 
 							count++;
 							//printf("%d \n\r", count); 
@@ -1226,26 +1226,26 @@ int main(void)
 					if(rx_data_count==0)
 					{
 						//Motor M3 speed
-						output.speed_bend_m3_s=TWDR; 
+						output.speed_m3_s=TWDR; 
 					}
 					else if(rx_data_count==1)
 					{
 						//Motor M5 dock speed
-						output.speed_dock_m5_s=TWDR;
+						output.speed_m5_s=TWDR;
 					}
 					else if(rx_data_count==2)
 					{
 						//Motor M5 dock direction
 
-						output.direction_dock_m5_s=TWDR;
-						set_M5(output.direction_dock_m5_s, output.speed_dock_m5_s);
+						output.direction_m5_s=TWDR;
+						set_M5(output.direction_m5_s, output.speed_m5_s);
 
 					}
 					else if(rx_data_count==3) //M3 direction
 					{
 					//M3 direction
-					output.direction_bend_m3_s=TWDR;
-					set_M3(output.direction_bend_m3_s, output.speed_bend_m3_s);
+					output.direction_m3_s=TWDR;
+					set_M3(output.direction_m3_s, output.speed_m3_s);
 
 					}
 					else if(rx_data_count==4)
@@ -1385,8 +1385,8 @@ int main(void)
 
 void master_output_update() //motor updates
 {
-	set_M5(output.direction_dock_m5_m, output.speed_dock_m5_m);
-	set_M3(output.direction_bend_m3_m, output.speed_bend_m3_m);
+	set_M5(output.direction_m5_m, output.speed_m5_m);
+	set_M3(output.direction_m3_m, output.speed_m3_m);
 
 	if (output.vibration_m == 1)
 	{
@@ -1586,26 +1586,26 @@ void flipbend(char side, char p){
 	//p a percentage to vary speed.
 
 	//Set direction for bend motors, see guide above
-	output.direction_bend_m3_m=side; //0 if forward, 1 is back
-	output.direction_bend_m3_s=(!side); //0 if forward, 1 is back
+	output.direction_m5_m=side; //0 if forward, 1 is back
+	output.direction_m5_s=(!side); //0 if forward, 1 is back
  
 	if (side==0){ 
 		if(input.switch_tension_m==1){
-			output.speed_bend_m3_s=UNWINDSPD*p/10;
+			output.speed_m5_s=UNWINDSPD*p/10;
 		}
 		else {
-			output.speed_bend_m3_s=0;
+			output.speed_m5_s=0;
 		}
-	output.speed_bend_m3_m=WINDSPD*p/10;	
+	output.speed_m5_m=WINDSPD*p/10;	
 	}
 	else{ //slave side
 		if(input.switch_tension_s==1){
-			output.speed_bend_m3_m=UNWINDSPD*p/10;
+			output.speed_m5_m=UNWINDSPD*p/10;
 		}
 		else {
-			output.speed_bend_m3_m=0;
+			output.speed_m5_m=0;
 		}
-	output.speed_bend_m3_s=WINDSPD*p/10;
+	output.speed_m5_s=WINDSPD*p/10;
 	}
 }
 
@@ -1620,10 +1620,10 @@ double get_accel_diff(void){
 //Zero Motors
 
 void zero_motors(void){
-	output.speed_bend_m3_m=0;
-	output.speed_bend_m3_s=0;
-	output.speed_dock_m5_m=0;
-	output.speed_dock_m5_s=0;
+	output.speed_m3_m=0;
+	output.speed_m3_s=0;
+	output.speed_m5_m=0;
+	output.speed_m5_s=0;
 }
 
 void LEDsOff(void){
