@@ -12,7 +12,7 @@
 #include <avr/interrupt.h>
 
 #define MASTER 1   // 1 for Master, 0 for Slave
-#define PCBTESTMODE 1 // 1 for running tests, 0 for experiments
+#define PCBTESTMODE 0 // 1 for running tests, 0 for experiments
 
 #define FOSC 8000000 // oscillator clock frequency, page 164 datasheet, internal RC oscillator clock source selected by fuse bits
 #define BAUD 9600 // baud rate desired
@@ -125,6 +125,7 @@
 #define WINDSPD 130
 #define UNWINDSPD 220
 #define GRIPPER_SPD 180
+#define IMU_SAMPLE_NUM 15
 
 //Touch Sensor Thresholds
 
@@ -312,7 +313,7 @@ void init(void)
 	toggle_wakeup = 0;
 
 
-//SETUP SLAVE (From old code???)
+//SETUP SLAVE (From old code??? but definitely necessary)
 	if(!MASTER){
 		TWAR=atmega_slave;
 		TWCR= (1<<TWEA)|(1<<TWEN);//|(1<<TWINT);
@@ -808,11 +809,15 @@ int main(void)
 	// TEST MODE
 	// This state is for calibrating and testing electronics, everything essentially "master mode"
 		if (PCBTESTMODE){
-			//			_delay_ms(500);
-			//	        setLED(50,50,50);
-			//	        _delay_ms(500);
-			//	        setLED(0,0,0);
-			 
+						_delay_ms(500);
+				        setLED(50,50,50);
+						output.vibration_m=1;
+						master_output_update();
+				        _delay_ms(500);
+				        setLED(0,0,0);
+						output.vibration_m=0;
+						master_output_update();
+/* 			 
 			output.speed_m3_m = 0;
 			if (input.switch_S4_m == 0){
 				setLED(50,50,50);
@@ -823,6 +828,7 @@ int main(void)
 				output.speed_m5_m = 0;
 				setLED(0,0,0);
 				}
+				*/
 			//printf("%#08X \n\r", ((EXPERIMENT&SETUP)& 0x0F));
 			//output.speed_m3_m=225;
 			//output.direction_m3_m=0;
@@ -832,12 +838,12 @@ int main(void)
 			//printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
 			//printf("s %d %d %d \n\r",input.accell_s[0],input.accell_s[1], input.accell_s[2]);
 			//printf("%#08X \n\r", IMU_ADDRESS);
-			printf("IR %d %d \n\r", input.IR1_m, input.IR2_m);
+			//printf("IR %d %d \n\r", input.IR1_m, input.IR2_m);
 			//input.IR2_m=get_IR_U5();
 			//input.IR1_m=get_IR_Flex_U1513();
 			//printf("IR %d \n\r", input.IR1_m); //for bend sensor reading only - note change function name to reflect.
 			master_output_update();
-			master_input_update();
+			//master_input_update();
 			_delay_ms(20);
 		}
 
@@ -1579,6 +1585,17 @@ void set_M3(unsigned char dir, unsigned char speed)
 }
 
 /////////////////utility functions 
+
+//function for detecting another robot's IMU pulses
+ void detect_pulse(){
+	 int i=0;
+	 double m_samples[IMU_SAMPLE_NUM];
+	 double s_samples[IMU_SAMPLE_NUM];
+	 for (i=0;i<IMU_SAMPLE_NUM;i++){
+
+	 }
+ }
+
 
 //Function for normal flipping, dependent on tension switches 
 
