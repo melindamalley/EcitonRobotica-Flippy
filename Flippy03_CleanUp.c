@@ -12,18 +12,18 @@
 #include <avr/interrupt.h>
 
 #define MASTER 1   // 1 for Master, 0 for Slave
-#define PCBTESTMODE 0 // 1 for running tests, 0 for experiments
+#define PCBTESTMODE 1 // 1 for running tests, 0 for experiments
 
 #define FOSC 8000000 // oscillator clock frequency, page 164 datasheet, internal RC oscillator clock source selected by fuse bits
 #define BAUD 9600 // baud rate desired
 #define MYUBRR ((FOSC / (16L * BAUD)) - 1) // used to set the UBRR high and low registers, Usart Baud Rate registers, for formula see datasheet page 146
 
-// IMU information
+//// IMU information
 #define accell_slave_addrs 0b11010000									// IMU address on slave board,  [7bit i2c embedded address from IMU chip datasheet,0] = 0xd0
 #define accell_master_addrs 0b11010010									// IMU address on master board, [7bit i2c embedded address from IMU chip datasheet,0] = 0xd2
 #define IMU_ADDRESS (MASTER ? accell_master_addrs : accell_slave_addrs) // (Condition? true_value: false_value), for unifying master/slave code
 
-// IMU chip registers
+//// IMU chip registers
 // accelerometer registers 0x3B to 0x40 for MPU-9250 (Mar 2019 order), 0x2D to 0x32 for ICM-20948 (Dec 2018 order)
 #define ACCEL_XOUT_H 0x3B // 0x2D //for ICM-20948
 #define ACCEL_XOUT_L 0x3C // 0x2E //for ICM-20948
@@ -36,7 +36,7 @@
 
 #define PWR_MGMT_1 0x6B // should be set to 0 for Accel to be run, see datasheet page 31
 
-// system states
+//// system states
 #define SETUP 0x10
 #define FLIP 0x20
 
@@ -125,7 +125,11 @@
 #define WINDSPD 130
 #define UNWINDSPD 220
 #define GRIPPER_SPD 180
+
+//IMU Parameters
+
 #define IMU_SAMPLE_NUM 15
+#define IMU_DELTA_THRESH 5000
 
 //Touch Sensor Thresholds
 
@@ -159,6 +163,7 @@ void flipbend(char side, char p);
 void zero_motors(void);
 void LEDsOff(void);
 double get_accel_diff(void);
+void detect_pulse();
 
 void init(void);
 int i2c_send(void);
@@ -809,15 +814,21 @@ int main(void)
 	// TEST MODE
 	// This state is for calibrating and testing electronics, everything essentially "master mode"
 		if (PCBTESTMODE){
-						_delay_ms(500);
-				        setLED(50,50,50);
-						output.vibration_m=1;
-						master_output_update();
-				        _delay_ms(500);
-				        setLED(0,0,0);
-						output.vibration_m=0;
-						master_output_update();
-/* 			 
+			
+			detect_pulse();
+
+			/////Blink and pulse
+			//_delay_ms(500);
+			//setLED(50,50,50);
+			//output.vibration_m=1;
+			//master_output_update();
+	        //_delay_ms(500);
+	        //setLED(0,0,0);
+			//output.vibration_m=0;
+			//master_output_update();
+			
+			////Sometimes if statements are useful
+			/* 			 
 			output.speed_m3_m = 0;
 			if (input.switch_S4_m == 0){
 				setLED(50,50,50);
@@ -828,21 +839,25 @@ int main(void)
 				output.speed_m5_m = 0;
 				setLED(0,0,0);
 				}
-				*/
-			//printf("%#08X \n\r", ((EXPERIMENT&SETUP)& 0x0F));
+			*/
+			
+			////Motor Testing
 			//output.speed_m3_m=225;
 			//output.direction_m3_m=0;
 			//output.direction_m5_m=1; // 0 positive
 			//output.speed_m5_m=225;
 			//output.vibration_m=1;
+
+			////Sensor Testing
 			//printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
 			//printf("s %d %d %d \n\r",input.accell_s[0],input.accell_s[1], input.accell_s[2]);
-			//printf("%#08X \n\r", IMU_ADDRESS);
 			//printf("IR %d %d \n\r", input.IR1_m, input.IR2_m);
 			//input.IR2_m=get_IR_U5();
 			//input.IR1_m=get_IR_Flex_U1513();
 			//printf("IR %d \n\r", input.IR1_m); //for bend sensor reading only - note change function name to reflect.
-			master_output_update();
+			
+			////Updates
+			//master_output_update();
 			//master_input_update();
 			_delay_ms(20);
 		}
@@ -1589,11 +1604,40 @@ void set_M3(unsigned char dir, unsigned char speed)
 //function for detecting another robot's IMU pulses
  void detect_pulse(){
 	 int i=0;
-	 double m_samples[IMU_SAMPLE_NUM];
-	 double s_samples[IMU_SAMPLE_NUM];
-	 for (i=0;i<IMU_SAMPLE_NUM;i++){
+	 int m_samples[IMU_SAMPLE_NUM][3];
+	 int s_samples[IMU_SAMPLE_NUM][3];
 
+	 int delta=0;
+	 for (i=0;i<IMU_SAMPLE_NUM;i++){
+		 get_IMU_measurement(1);
+		 get_IMU_measurement(0); 
+		 //This will load IMU measurement into accel input, a bit sloppy think about fixing??
+		 //Also can eventually change to just delta threshold recording to save memory. 
+		 m_samples[i][0]=input.accell_m[0];
+		 m_samples[i][1]=input.accell_m[1];
+		 m_samples[i][2]=input.accell_m[2];
+		 s_samples[i][0]=input.accell_s[0];
+		 s_samples[i][1]=input.accell_s[1];
+		 s_samples[i][2]=input.accell_s[2];
+
+		 if (i>0){
+			 //Check if any of the values recorded differe from previous by more than the threshold. 
+			 if ((abs(m_samples[i][0]-m_samples[i-1][0])>IMU_DELTA_THRESH)|(abs(m_samples[i][1]-m_samples[i-1][1])>IMU_DELTA_THRESH)|
+			 (abs(m_samples[i][2]-m_samples[i-1][2])>IMU_DELTA_THRESH)|(abs(s_samples[i][0]-s_samples[i-1][0])>IMU_DELTA_THRESH)|
+			 (abs(s_samples[i][2]-s_samples[i-1][2])>IMU_DELTA_THRESH)|(abs(s_samples[i][2]-s_samples[i-1][2])>IMU_DELTA_THRESH))
+		 	delta++;
+		 }
 	 }
+	 //for (i=0;i<IMU_SAMPLE_NUM;i++){
+	 //printf("%d %d %d \n\r", m_samples[i][0], m_samples[i][1], m_samples[i][2]);
+	 //}
+	if (delta>3){
+		setLED(20,20,20);
+	}
+	else{
+		setLED(0,0,0);
+	}
+
  }
 
 
