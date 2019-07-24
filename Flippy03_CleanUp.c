@@ -12,7 +12,7 @@
 #include <avr/interrupt.h>
 
 #define MASTER 1   // 1 for Master, 0 for Slave
-#define PCBTESTMODE 1 // 1 for running tests, 0 for experiments
+#define PCBTESTMODE 0 // 1 for running tests, 0 for experiments
 
 #define FOSC 8000000 // oscillator clock frequency, page 164 datasheet, internal RC oscillator clock source selected by fuse bits
 #define BAUD 9600 // baud rate desired
@@ -139,7 +139,13 @@
 //#define CONNECTED 600
 //#define WELL_CONNECTED 500
 
-#define DETACH_THRESH 1840
+#define CLOSE_ATT_THRESH 660 // At least one IR must be under this (probably the close one)
+#define FAR_ATT_THRESH 880 // Both IRs should be under 900 to attach
+
+#define DET_THRESH 915 // IRs must be over this to be considered detached. 
+
+//Combination  Thesholds (didn't work as well)
+#define DETACH_THRESH 1840 
 #define ATTACH_THRESH 1200
 
 //Other Useful Variables
@@ -803,7 +809,8 @@ int main(void)
 	init();
 	sei();
 	uint8_t state = 0;
-	uint8_t count = 0; //counter for open loop control bits - timing of grippers etc. 
+	uint8_t count = 0; //counter for open loop control bits - timing of grippers etc.
+	uint8_t count2 =0; //2nd count variable 
 	unsigned char toggle = 0; //toggle bit
 	double bend_angle=0; //used for recording the angle of the robot (and angle of the grippers during detaching)
 	double init_angle=0; //used as a reference angle during detaching
@@ -815,7 +822,7 @@ int main(void)
 	// This state is for calibrating and testing electronics, everything essentially "master mode"
 		if (PCBTESTMODE){
 			
-			detect_pulse();
+			//detect_pulse();
 
 			/////Blink and pulse
 			//_delay_ms(500);
@@ -851,14 +858,16 @@ int main(void)
 			////Sensor Testing
 			//printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
 			//printf("s %d %d %d \n\r",input.accell_s[0],input.accell_s[1], input.accell_s[2]);
-			//printf("IR %d %d \n\r", input.IR1_m, input.IR2_m);
+			printf("IR %d %d \n\r", input.IR1_s, input.IR2_s);
 			//input.IR2_m=get_IR_U5();
 			//input.IR1_m=get_IR_Flex_U1513();
 			//printf("IR %d \n\r", input.IR1_m); //for bend sensor reading only - note change function name to reflect.
 			
 			////Updates
-			//master_output_update();
-			//master_input_update();
+			i2c_send();
+			master_output_update();
+			i2c_read();
+			master_input_update();
 			_delay_ms(20);
 		}
 
@@ -923,7 +932,7 @@ int main(void)
 							//Make sure the control switch is unpressed before checking again. 
 							if ((input.switch_S4_m==1)&(input.switch_S4_s==1)){
 								toggle=1;
-								printf("toggle");
+								//printf("toggle");
 								}
 							//Main functionality - rewind motors until both tension switches are pressed. 
 							if (toggle==1){
@@ -1098,8 +1107,15 @@ int main(void)
 							//Check for surface
 							if (toggle==2){
 								//Check for IR sensors or manual control to switch states
-								if (flipside ? (input.switch_S4_m==0)|((input.IR1_m+input.IR1_m)<ATTACH_THRESH):
-								(input.switch_S4_s==0)|((input.IR1_s+input.IR1_s)<ATTACH_THRESH)){
+								//Attach if switch is pressed or 
+								//if 1. one IR is smaller than the close threshold AND 2. Both IRs are smaller than the far threshold.
+								if (flipside ? (input.switch_S4_m==0)|(
+									((input.IR1_m<CLOSE_ATT_THRESH)|(input.IR2_m<CLOSE_ATT_THRESH))&
+									((input.IR1_m<FAR_ATT_THRESH)&(input.IR2_m<FAR_ATT_THRESH))):
+									(input.switch_S4_s==0)|(
+									((input.IR1_s<CLOSE_ATT_THRESH)|(input.IR2_s<CLOSE_ATT_THRESH))&
+									((input.IR1_s<FAR_ATT_THRESH)&(input.IR2_s<FAR_ATT_THRESH)))){
+									
 									count++; //Account for noise, make sure the surface is detected twice. 
 									if (count>2){
 										//Turn off motors and LEDS
@@ -1192,8 +1208,8 @@ int main(void)
 							}
 							//if bend angle has changed (toggle condition)
 							//change states once no surface is detected (or manually with switches)
-							else if (flipside ? (input.switch_S4_m==0)|((input.IR1_m+input.IR1_m)>DETACH_THRESH):
-								(input.switch_S4_s==0)|((input.IR1_s+input.IR1_s)>DETACH_THRESH)){
+							else if (flipside ? (input.switch_S4_m==0)|((input.IR1_m+input.IR2_m)>DETACH_THRESH):
+								(input.switch_S4_s==0)|((input.IR1_s+input.IR2_s)>DETACH_THRESH)){
 								//change state
 								state=FLIPPING1;
 								//Zero motors
@@ -1204,18 +1220,34 @@ int main(void)
 								//Reset counter and toggle
 								count=0;
 								toggle=0;
-								_delay_ms(500); //just give the robot some time, probably doesn't need to be this long
+								count2=0;
+								_delay_ms(100); //just give the robot some time, probably doesn't need to be this long
 								break;
 							}
-							//unwind for 20 ticks
-							if (count>22){
-								//then try to flip for 3 ticks
-								if (count<25){
-									flipbend(flipside,10);
+							//if you've been trying to detach for a while, unwind so as to not overtension.
+							if (count2>7){
+								output.direction_m5_m=1; //set motors to unwind
+								output.direction_m5_s=1;
+								if((input.switch_tension_s==1)|(input.switch_tension_m==1)){
+									output.speed_m5_m=60;
+									output.speed_m5_s=60;
+									}
+								else {
+									output.speed_m5_m=0;
+									output.speed_m5_s=0;
+									count2=0;
+									}
+							}
+							//otherwise just try to unscrew for 20 ticks
+							else if (count>22){
+								//then try to flip for 4 ticks
+								if (count<26){
+									flipbend(flipside,7);
 								}
 								else{
 								//reset count
 								count=0;
+								count2++; //record how many rounds we've been trying to detach overall. 
 								}
 							}
 						break;
