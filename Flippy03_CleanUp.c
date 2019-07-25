@@ -123,8 +123,8 @@
 //Flip Parameters:
 
 #define WINDSPD 130
-#define UNWINDSPD 220
-#define GRIPPER_SPD 180
+#define UNWINDSPD 210
+#define GRIPPER_SPD 210
 
 //IMU Parameters
 
@@ -1210,27 +1210,30 @@ int main(void)
 							//change states once no surface is detected (or manually with switches)
 							else if (flipside ? (input.switch_S4_m==0)|((input.IR1_m+input.IR2_m)>DETACH_THRESH):
 								(input.switch_S4_s==0)|((input.IR1_s+input.IR2_s)>DETACH_THRESH)){
-								//change state
-								state=FLIPPING1;
-								//Zero motors
-								zero_motors();
-								//Zero LEDS
-								output.led_m[2]=0;
-								output.led_s[2]=0;
-								//Reset counter and toggle
-								count=0;
-								toggle=0;
-								count2=0;
-								_delay_ms(100); //just give the robot some time, probably doesn't need to be this long
-								break;
+								toggle++; //use toggle to ensure that detach thresh reached at least 2 times.
+								if (toggle>=3){
+									//change state
+									state=FLIPPING1;
+									//Zero motors
+									zero_motors();
+									//Zero LEDS
+									output.led_m[2]=0;
+									output.led_s[2]=0;
+									//Reset counter and toggle
+									count=0;
+									toggle=0;
+									count2=0;
+									_delay_ms(100); //just give the robot some time, probably doesn't need to be this long
+									break;
+								}
 							}
 							//if you've been trying to detach for a while, unwind so as to not overtension.
 							if (count2>7){
 								output.direction_m5_m=1; //set motors to unwind
 								output.direction_m5_s=1;
-								if((input.switch_tension_s==1)|(input.switch_tension_m==1)){
-									output.speed_m5_m=60;
-									output.speed_m5_s=60;
+								if((input.switch_tension_s==1)&(input.switch_tension_m==1)){
+									output.speed_m5_m=(!flipside)*60;
+									output.speed_m5_s=flipside*60;
 									}
 								else {
 									output.speed_m5_m=0;
