@@ -125,6 +125,7 @@
 #define WINDSPD 130
 #define UNWINDSPD 210
 #define GRIPPER_SPD 210
+#define NUM_DETACH_FLIP_ATTEMPTS 10
 
 //IMU Parameters
 
@@ -139,7 +140,7 @@
 //#define CONNECTED 600
 //#define WELL_CONNECTED 500
 
-#define CLOSE_ATT_THRESH 660 // At least one IR must be under this (probably the close one)
+#define CLOSE_ATT_THRESH 700 //660 // At least one IR must be under this (probably the close one)
 #define FAR_ATT_THRESH 880 // Both IRs should be under 900 to attach
 
 #define DET_THRESH 915 // IRs must be over this to be considered detached. 
@@ -1228,7 +1229,7 @@ int main(void)
 								}
 							}
 							//if you've been trying to detach for a while, unwind so as to not overtension.
-							if (count2>7){
+							if (count2>NUM_DETACH_FLIP_ATTEMPTS){
 								output.direction_m5_m=1; //set motors to unwind
 								output.direction_m5_s=1;
 								if((input.switch_tension_s==1)&(input.switch_tension_m==1)){
