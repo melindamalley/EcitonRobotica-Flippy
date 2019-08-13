@@ -140,8 +140,8 @@
 //#define CONNECTED 600
 //#define WELL_CONNECTED 500
 
-#define CLOSE_ATT_THRESH 700 //660 // At least one IR must be under this (probably the close one)
-#define FAR_ATT_THRESH 880 // Both IRs should be under 900 to attach
+#define CLOSE_ATT_THRESH 720 //660 // At least one IR must be under this (probably the close one)
+#define FAR_ATT_THRESH 900 // Both IRs should be under 900 to attach
 
 #define DET_THRESH 915 // IRs must be over this to be considered detached. 
 
@@ -877,14 +877,21 @@ int main(void)
 	// This is the state for running experiments through the master board
 		else if(MASTER){
 
-		/////First update everything - needed for all states
+			////Reset Functionality - if master S3 is pressed, go back to setup state. 
+			if(get_switch_input(S3_port,S3_pin)==0){
+				zero_motors();
+				system_state=SETUP;
+				state=UNWIND;
+			}
+
+			/////First update everything - needed for all states
 			i2c_send();
 			master_output_update();
 			i2c_read();
 			master_input_update();
 			_delay_ms(20);
-			//setLED(0,0,0);
-		/////
+			//setLED(0,0,0); 
+			/////
 			
 			switch (system_state){
 				case SETUP: //Experiment Set-up and Reset (in case the robot gets stuck)
@@ -1233,7 +1240,8 @@ int main(void)
 								output.direction_m5_m=1; //set motors to unwind
 								output.direction_m5_s=1;
 								if((input.switch_tension_s==1)&(input.switch_tension_m==1)){
-									output.speed_m5_m=(!flipside)*60;
+									//Logic will choose only the top motor to unwind, which is good if the gripper is stuck, but may not allow enough pull?
+									output.speed_m5_m=(!flipside)*60; 
 									output.speed_m5_s=flipside*60;
 									}
 								else {
