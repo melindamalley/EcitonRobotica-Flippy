@@ -39,6 +39,7 @@
 //// system states
 #define SETUP 0x10
 #define FLIP 0x20
+#define BRIDGE 0x30
 
 #define UNWIND 0x00
 #define REWIND 0x01
@@ -998,7 +999,7 @@ int main(void)
 									break;
 								}
 								else if(input.switch_S4_s==0){
-									state=UNWIND;
+									system_state=BRIDGE;
 									toggle=0;
 									_delay_ms(2000);
 									break;
@@ -1298,6 +1299,9 @@ int main(void)
 						break;
 					}
 				break; //end FLIP
+				case BRIDGE:
+					detect_pulse();
+				break;
 			}
 		}
 //////////////////////////////////////////////////////////////////
@@ -1727,7 +1731,9 @@ void set_M4(unsigned char on){
 
 void pulse(){
 			/////Blink and pulse
-			_delay_ms(200);
+			output.led_s[0]=30;
+			output.led_s[1]=30;
+			output.led_s[2]=30;
 			setLED(50,50,50);
 			output.vibration_m=1;
 			output.vibration_s=1;
@@ -1735,10 +1741,14 @@ void pulse(){
 			i2c_send();
 	        _delay_ms(200);
 	        setLED(0,0,0);
+			output.led_s[0]=0;
+			output.led_s[1]=0;
+			output.led_s[2]=0;
 			output.vibration_m=0;
 			output.vibration_s=0;
 			master_output_update();
 			i2c_send();
+			_delay_ms(200);
 }
 
 
