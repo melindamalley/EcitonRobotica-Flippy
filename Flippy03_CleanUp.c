@@ -122,10 +122,10 @@
 
 //Flip Parameters:
 
-#define WINDSPD 130
-#define UNWINDSPD 210
-#define GRIPPER_SPD 210
-#define NUM_DETACH_FLIP_ATTEMPTS 10
+#define WINDSPD 120
+#define UNWINDSPD 200
+#define GRIPPER_SPD 230
+#define NUM_DETACH_FLIP_ATTEMPTS 12
 
 //IMU Parameters
 
@@ -140,7 +140,7 @@
 //#define CONNECTED 600
 //#define WELL_CONNECTED 500
 
-#define CLOSE_ATT_THRESH 720 //660 // At least one IR must be under this (probably the close one)
+#define CLOSE_ATT_THRESH 750 //660 // At least one IR must be under this (probably the close one)
 #define FAR_ATT_THRESH 900 // Both IRs should be under 900 to attach
 
 #define DET_THRESH 915 // IRs must be over this to be considered detached. 
@@ -156,6 +156,7 @@
 //Define helper functions
 void setLED(unsigned char red, unsigned char green, unsigned char blue);
 void set_M3(unsigned char dir, unsigned char speed);
+void set_M4(uint8_t on);
 void set_M5(unsigned char dir, unsigned char speed);
 int switch_power(void);
 int switch_tension1(void);
@@ -171,6 +172,7 @@ void zero_motors(void);
 void LEDsOff(void);
 double get_accel_diff(void);
 void detect_pulse();
+void pulse();
 
 void init(void);
 int i2c_send(void);
@@ -210,7 +212,8 @@ struct outputs
 	uint8_t direction_m3_s;
 	uint8_t led_m[3];
 	uint8_t led_s[3];
-	uint8_t vibration_m;
+	unsigned char vibration_m;
+	unsigned char vibration_s;
 };
 
 struct outputs output;
@@ -620,6 +623,23 @@ int i2c_send()
 		sei();
 		return (-1);
 	}
+
+	TWDR = output.vibration_s;
+
+
+	TWCR = (1 << TWINT) | (1 << TWEN); //start tx of data
+
+	while (!(TWCR & (1 << TWINT)))
+		; //wait for data to tx
+
+	//check for data ack
+	if ((TWSR & 0xF8) != 0x28)
+	{
+		printf("5 ack problem is 0x%x\n\r", (TWSR & 0xF8));
+		TWCR = (1 << TWEA) | (1 << TWEN) | (1 << TWINT) | (1 << TWSTO);
+		sei();
+		return (-1);
+	}
 	TWDR = output.led_s[0];
 
 	TWCR = (1 << TWINT) | (1 << TWEN); //start tx of data
@@ -826,14 +846,21 @@ int main(void)
 			//detect_pulse();
 
 			/////Blink and pulse
-			//_delay_ms(500);
-			//setLED(50,50,50);
+			
+			setLED(50,50,50);
+			set_M4(1);
+			//set(M4_port,M4_pin);
 			//output.vibration_m=1;
 			//master_output_update();
-	        //_delay_ms(500);
-	        //setLED(0,0,0);
+			i2c_send();
+	        _delay_ms(500);
+	        setLED(0,0,0);
+			set_M4(0);
+			//clear(M4_port, M4_pin); 
 			//output.vibration_m=0;
 			//master_output_update();
+			i2c_send();
+			_delay_ms(500);
 			
 			////Sometimes if statements are useful
 			/* 			 
@@ -859,7 +886,7 @@ int main(void)
 			////Sensor Testing
 			//printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
 			//printf("s %d %d %d \n\r",input.accell_s[0],input.accell_s[1], input.accell_s[2]);
-			printf("IR %d %d \n\r", input.IR1_s, input.IR2_s);
+			//printf("IR %d %d %d %d \n\r", input.IR1_m, input.IR2_m, input.IR1_s, input.IR2_s);
 			//input.IR2_m=get_IR_U5();
 			//input.IR1_m=get_IR_Flex_U1513();
 			//printf("IR %d \n\r", input.IR1_m); //for bend sensor reading only - note change function name to reflect.
@@ -891,6 +918,8 @@ int main(void)
 			master_input_update();
 			_delay_ms(20);
 			//setLED(0,0,0); 
+			//To gather IR flip data:
+			//printf("IR %d %d %d %d \n\r", input.IR1_m, input.IR2_m, input.IR1_s, input.IR2_s); 
 			/////
 			
 			switch (system_state){
@@ -1001,12 +1030,14 @@ int main(void)
 								output.led_s[2]=0;
 								output.direction_m3_s=0;
 								output.speed_m3_s=0.7*GRIPPER_SPD;
+								//printf("IR %d %d \n\r", input.IR1_s, input.IR2_s); //for testing IR diff
 								}
 							else if (input.switch_S4_s==0){
 								output.led_s[0]=0;
 								output.led_s[2]=20;
 								output.direction_m3_s=1;
 								output.speed_m3_s=GRIPPER_SPD;
+								//printf("IR %d %d \n\r", input.IR1_s, input.IR2_s); //for testing IR diff
 								}
 							else{
 								output.led_s[0]=0;
@@ -1130,6 +1161,7 @@ int main(void)
 										zero_motors();
 										LEDsOff();
 										//Zero Everything
+										pulse();
 										count=0;
 										toggle=0;
 										//Switch States
@@ -1159,13 +1191,14 @@ int main(void)
 							output.speed_m3_m=flipside*0.7*GRIPPER_SPD;
 							output.speed_m3_s=(!flipside)*0.7*GRIPPER_SPD;
 							//Just run the grippers forward for a set time.							
-							if (count>200){
+							if (count>240){
 								//Zero everything
 								count=0;
 								output.led_m[1]=0;
 								output.led_s[1]=0;
 								output.speed_m3_m=0;
 								output.speed_m3_s=0;
+								pulse();
 
 								//Prep for next state
 
@@ -1241,8 +1274,8 @@ int main(void)
 								output.direction_m5_s=1;
 								if((input.switch_tension_s==1)&(input.switch_tension_m==1)){
 									//Logic will choose only the top motor to unwind, which is good if the gripper is stuck, but may not allow enough pull?
-									output.speed_m5_m=(!flipside)*60; 
-									output.speed_m5_s=flipside*60;
+									output.speed_m5_m=(!flipside)*60+30; 
+									output.speed_m5_s=flipside*60+30;
 									}
 								else {
 									output.speed_m5_m=0;
@@ -1252,9 +1285,9 @@ int main(void)
 							}
 							//otherwise just try to unscrew for 20 ticks
 							else if (count>22){
-								//then try to flip for 4 ticks
-								if (count<26){
-									flipbend(flipside,7);
+								//then try to flip for 5 ticks
+								if (count<27){
+									flipbend(flipside,8);
 								}
 								else{
 								//reset count
@@ -1313,20 +1346,24 @@ int main(void)
 					set_M3(output.direction_m3_s, output.speed_m3_s);
 
 					}
-					else if(rx_data_count==4)
-					{
-						output.led_s[0]=TWDR;
+					else if(rx_data_count==4){
+						output.vibration_s=TWDR;
+						set_M4(output.vibration_s);
 					}
 					else if(rx_data_count==5)
 					{
-						output.led_s[1]=TWDR;
+						output.led_s[0]=TWDR;
 					}
 					else if(rx_data_count==6)
+					{
+						output.led_s[1]=TWDR;
+					}
+					else if(rx_data_count==7)
 					{
 						output.led_s[2]=TWDR;
 						setLED(output.led_s[0],output.led_s[1],output.led_s[2]);
 					}
-					else if(rx_data_count==7)
+					else if(rx_data_count==8)
 					{
 						power_state=TWDR;
 					
@@ -1452,17 +1489,8 @@ void master_output_update() //motor updates
 {
 	set_M5(output.direction_m5_m, output.speed_m5_m);
 	set_M3(output.direction_m3_m, output.speed_m3_m);
+	set_M4(output.vibration_m);
 
-	if (output.vibration_m == 1)
-	{
-		DDRB |= (1 << 0); //Vibration motor PB0
-		PORTB |= (1 << 0);
-	}
-	else
-	{
-		DDRB |= (1 << 0); //Vibration motor PB0
-		PORTB &= ~(1 << 0);
-	}
 	setLED(output.led_m[0],output.led_m[1],output.led_m[2]);
 }
 
@@ -1643,6 +1671,19 @@ void set_M3(unsigned char dir, unsigned char speed)
 	}
 }
 
+void set_M4(unsigned char on){
+	if (on == 1)
+		{
+			DDRB |= (1 << 0); //Vibration motor PB0
+			PORTB |= (1 << 0);
+		}
+		else
+		{
+			DDRB |= (1 << 0); //Vibration motor PB0
+			PORTB &= ~(1 << 0);
+		}
+}
+
 /////////////////utility functions 
 
 //function for detecting another robot's IMU pulses
@@ -1683,6 +1724,22 @@ void set_M3(unsigned char dir, unsigned char speed)
 	}
 
  }
+
+void pulse(){
+			/////Blink and pulse
+			_delay_ms(200);
+			setLED(50,50,50);
+			output.vibration_m=1;
+			output.vibration_s=1;
+			master_output_update();
+			i2c_send();
+	        _delay_ms(200);
+	        setLED(0,0,0);
+			output.vibration_m=0;
+			output.vibration_s=0;
+			master_output_update();
+			i2c_send();
+}
 
 
 //Function for normal flipping, dependent on tension switches 
@@ -1729,6 +1786,8 @@ void zero_motors(void){
 	output.speed_m3_s=0;
 	output.speed_m5_m=0;
 	output.speed_m5_s=0;
+	output.vibration_m=0;
+	output.vibration_s=0;
 }
 
 void LEDsOff(void){
