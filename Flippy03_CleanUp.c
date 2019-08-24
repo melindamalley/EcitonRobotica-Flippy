@@ -1061,7 +1061,7 @@ int main(void)
 
 								state=FLIPPING1;
 								system_state=FLIP;
-								_delay_ms(9000);
+								_delay_ms(15000);
 								break;
 							}
 							else if (input.switch_S4_m==0){
@@ -1191,7 +1191,8 @@ int main(void)
 
 							output.speed_m3_m=flipside*0.7*GRIPPER_SPD;
 							output.speed_m3_s=(!flipside)*0.7*GRIPPER_SPD;
-							//Just run the grippers forward for a set time.							
+							//Just run the grippers forward for a set time.
+							
 							if (count>240){
 								//Zero everything
 								count=0;
@@ -1721,13 +1722,21 @@ void set_M4(unsigned char on){
 	 //printf("%d %d %d \n\r", m_samples[i][0], m_samples[i][1], m_samples[i][2]);
 	 //}
 	if (delta>3){
-		setLED(20,20,20);
+		setLED(40,40,40);
+		output.led_s[0]=40;
+		output.led_s[1]=40;
+		output.led_s[2]=40;
 	}
 	else{
 		setLED(0,0,0);
+		output.led_s[0]=0;
+		output.led_s[1]=0;
+		output.led_s[2]=0;
 	}
 
  }
+
+//Pulse function for robot to say I'm here!
 
 void pulse(){
 			/////Blink and pulse
