@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <avr/interrupt.h>
 
+#define ROBOT 0 //0 is clearbot, 1 is whitebot
 #define MASTER 1   // 1 for Master, 0 for Slave
 #define PCBTESTMODE 0 // 1 for running tests, 0 for experiments
 
@@ -1147,32 +1148,71 @@ int main(void)
 							//Check for surface
 							if (toggle==2){
 								//Check for IR sensors or manual control to switch states
-								//Attach if switch is pressed or 
+								//Attach if switch is pressed or
+
+								//Old rules: 
 								//if 1. one IR is smaller than the close threshold AND 2. Both IRs are smaller than the far threshold.
-								if (flipside ? (input.switch_S4_m==0)|(
-									((input.IR1_m<CLOSE_ATT_THRESH)|(input.IR2_m<CLOSE_ATT_THRESH))&
-									((input.IR1_m<FAR_ATT_THRESH)&(input.IR2_m<FAR_ATT_THRESH))):
-									(input.switch_S4_s==0)|(
-									((input.IR1_s<CLOSE_ATT_THRESH)|(input.IR2_s<CLOSE_ATT_THRESH))&
-									((input.IR1_s<FAR_ATT_THRESH)&(input.IR2_s<FAR_ATT_THRESH)))){
+								
+								//New rules
+								//Manual mode first:
+								//if switch is pressed, go direct to attach mode. 
+								if (flipside ? (input.switch_S4_m==0):(input.switch_S4_s==0)){
+									toggle=4;
+								}
+
+								//Normal mode:
+								//Just check first if robot "sees" a surface
+
+								if (flipside ? ((input.IR1_m<FAR_ATT_THRESH)|(input.IR2_m<FAR_ATT_THRESH)):
+									((input.IR1_s<FAR_ATT_THRESH)&(input.IR2_s<FAR_ATT_THRESH)))
+									{
 									
 									count++; //Account for noise, make sure the surface is detected twice. 
 									if (count>2){
-										//Turn off motors and LEDS
-										zero_motors();
-										LEDsOff();
-										//Zero Everything
-										pulse();
-										count=0;
-										toggle=0;
-										//Switch States
-										state=ATTACHING;
-										break;
+										count=0; //reset count
+										//move to next stage
+										toggle=3;
 										}
 									}
 								else{
 									flipbend(flipside,10);
 								}
+							}
+							if (toggle==3){
+								//First check to see if second attach thresh are met. 
+								if(flipside ? ((input.IR1_m<CLOSE_ATT_THRESH)&(input.IR2_m<CLOSE_ATT_THRESH)):
+									((input.IR1_s<CLOSE_ATT_THRESH)&(input.IR2_s<CLOSE_ATT_THRESH)))
+									{
+										count2++; //iterate second counter
+										if (count2>2){
+											toggle=4;
+											//zero both counters
+											count=0;
+											count2=0;
+										}							
+								}	
+								else if (count>5){
+									//Use pulse both to tell any robots that I want to attach and to add a delay between flip attempts
+									pulse();
+									count=0; //reset counter
+								}
+								else{
+									flipbend(flipside,8); //slight bends until
+								}
+								count++; //iterate counter
+							}
+							//Last stage
+							if (toggle==4){
+								//Turn off motors and LEDS
+								zero_motors();
+								LEDsOff();
+								//Zero Everything
+								pulse();
+								count=0;
+								toggle=0;
+								//Switch States
+								state=ATTACHING;
+								break;
 							}
 
 						break;
@@ -1193,7 +1233,7 @@ int main(void)
 							output.speed_m3_s=(!flipside)*0.7*GRIPPER_SPD;
 							//Just run the grippers forward for a set time.
 							
-							if (count>240){
+							if (count>230){
 								//Zero everything
 								count=0;
 								output.led_m[1]=0;
