@@ -46,9 +46,10 @@
 #define REWIND 0x01
 #define SLAVE_GRIPPER 0x02
 #define MASTER_GRIPPER 0x03
-#define FLIPPING1 0x04
-#define ATTACHING 0x05
-#define DETACHING 0x06
+#define IR_CALIBRATE 0x04
+#define FLIPPING1 0x05
+#define ATTACHING 0x06
+#define DETACHING 0x07
 
 #define atmega_slave 0xf0 // // address of the slave board processor, to be renamed to something more meaningful e.g. MCU_slave_address
 #define led_wrt_cmd 0x3A  // led driver write command
@@ -142,8 +143,9 @@
 //#define CONNECTED 600
 //#define WELL_CONNECTED 500
 
+
 #define CLOSE_ATT_THRESH 750 //660 // At least one IR must be under this (probably the close one)
-#define FAR_ATT_THRESH 900 // Both IRs should be under 900 to attach
+#define FAR_ATT_THRESH 915 // Both IRs should be under 900 to attach
 
 #define DET_THRESH 915 // IRs must be over this to be considered detached. 
 
@@ -833,10 +835,12 @@ int main(void)
 	sei();
 	uint8_t state = 0;
 	uint8_t count = 0; //counter for open loop control bits - timing of grippers etc.
-	uint8_t count2 =0; //2nd count variable 
+	uint8_t count2 = 0; //2nd count variable 
 	unsigned char toggle = 0; //toggle bit
 	double bend_angle=0; //used for recording the angle of the robot (and angle of the grippers during detaching)
 	double init_angle=0; //used as a reference angle during detaching
+	int close_att_thresh_m[2]={CLOSE_ATT_THRESH, CLOSE_ATT_THRESH}; //define as a startup but use calibration to set value. 
+	int close_att_thresh_s[2]={CLOSE_ATT_THRESH, CLOSE_ATT_THRESH}; //see above
 	char flipside=1; //direction of flipping, reference with pcb facing and forward (1) being to the right
 
 	while (1){
@@ -1060,8 +1064,8 @@ int main(void)
 								i2c_send();
 								master_output_update();
 
-								state=FLIPPING1;
-								system_state=FLIP;
+								state=IR_CALIBRATE;
+								//system_state=FLIP; //for previous rendition without auto-calibrate
 								_delay_ms(15000);
 								break;
 							}
@@ -1081,6 +1085,25 @@ int main(void)
 								output.led_m[0]=0;
 								output.led_m[2]=0;
 								output.speed_m3_m=0;
+							}
+							break;
+						case IR_CALIBRATE:
+							if (count<3){ //collect some samples
+								close_att_thresh_m[0]=close_att_thresh_m[0]+get_IR_U5();
+								close_att_thresh_m[1]=close_att_thresh_m[1]+get_IR_Flex_U1513();
+								close_att_thresh_s[0]=close_att_thresh_s[0]+get_IR_U5();
+								close_att_thresh_s[1]=close_att_thresh_s[1]+get_IR_Flex_U1513();
+								count++;
+							}
+							else{ //average the samples and add some wiggle room
+								close_att_thresh_m[0]=close_att_thresh_m[0]/4+50;
+								close_att_thresh_m[1]=close_att_thresh_m[1]/4+50;
+								close_att_thresh_s[0]=close_att_thresh_s[0]/4+50;
+								close_att_thresh_s[1]=close_att_thresh_s[1]/4+50;
+								count=0; //reset counter
+								state=DETACHING;
+								system_state=FLIP;
+								break;
 							}
 							break;
 					}
