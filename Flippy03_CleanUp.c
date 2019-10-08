@@ -145,7 +145,9 @@
 
 
 #define CLOSE_ATT_THRESH 750 //660 // At least one IR must be under this (probably the close one)
-#define FAR_ATT_THRESH 915 // Both IRs should be under 900 to attach
+#define FAR_ATT_THRESH 920 // Both IRs should be under 900 to attach
+
+#define IR_THRESH_SLACK 100 //Slop/allowance for IR calibration
 
 #define DET_THRESH 915 // IRs must be over this to be considered detached. 
 
@@ -1089,17 +1091,17 @@ int main(void)
 							break;
 						case IR_CALIBRATE:
 							if (count<3){ //collect some samples
-								close_att_thresh_m[0]=close_att_thresh_m[0]+get_IR_U5();
-								close_att_thresh_m[1]=close_att_thresh_m[1]+get_IR_Flex_U1513();
-								close_att_thresh_s[0]=close_att_thresh_s[0]+get_IR_U5();
-								close_att_thresh_s[1]=close_att_thresh_s[1]+get_IR_Flex_U1513();
+								close_att_thresh_m[0]=close_att_thresh_m[0]+input.IR2_m;
+								close_att_thresh_m[1]=close_att_thresh_m[1]+input.IR1_m;
+								close_att_thresh_s[0]=close_att_thresh_s[0]+input.IR2_s;
+								close_att_thresh_s[1]=close_att_thresh_s[1]+input.IR1_s;
 								count++;
 							}
 							else{ //average the samples and add some wiggle room
-								close_att_thresh_m[0]=close_att_thresh_m[0]/4+50;
-								close_att_thresh_m[1]=close_att_thresh_m[1]/4+50;
-								close_att_thresh_s[0]=close_att_thresh_s[0]/4+50;
-								close_att_thresh_s[1]=close_att_thresh_s[1]/4+50;
+								close_att_thresh_m[0]=close_att_thresh_m[0]/4+IR_THRESH_SLACK;
+								close_att_thresh_m[1]=close_att_thresh_m[1]/4+IR_THRESH_SLACK;
+								close_att_thresh_s[0]=close_att_thresh_s[0]/4+IR_THRESH_SLACK;
+								close_att_thresh_s[1]=close_att_thresh_s[1]/4+IR_THRESH_SLACK;
 								count=0; //reset counter
 								state=DETACHING;
 								system_state=FLIP;
@@ -1203,8 +1205,8 @@ int main(void)
 							}
 							if (toggle==3){
 								//First check to see if second attach thresh are met. 
-								if(flipside ? ((input.IR1_m<CLOSE_ATT_THRESH)&(input.IR2_m<CLOSE_ATT_THRESH)):
-									((input.IR1_s<CLOSE_ATT_THRESH)&(input.IR2_s<CLOSE_ATT_THRESH)))
+								if(flipside ? ((input.IR1_m<close_att_thresh_m[1])&(input.IR2_m<close_att_thresh_m[0])):
+									((input.IR1_s<close_att_thresh_s[1])&(input.IR2_s<close_att_thresh_s[0])))
 									{
 										count2++; //iterate second counter
 										if (count2>2){
