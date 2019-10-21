@@ -144,7 +144,7 @@
 //#define WELL_CONNECTED 500
 
 
-#define CLOSE_ATT_THRESH 750 //660 // At least one IR must be under this (probably the close one)
+#define CLOSE_ATT_THRESH 800 //660 // At least one IR must be under this (probably the close one)
 #define FAR_ATT_THRESH 920 // Both IRs should be under 900 to attach
 
 #define IR_THRESH_SLACK 100 //Slop/allowance for IR calibration
@@ -854,7 +854,7 @@ int main(void)
 			//detect_pulse();
 
 			/////Blink and pulse
-			
+			/*
 			setLED(50,50,50);
 			set_M4(1);
 			//set(M4_port,M4_pin);
@@ -869,7 +869,7 @@ int main(void)
 			//master_output_update();
 			i2c_send();
 			_delay_ms(500);
-			
+			*/
 			////Sometimes if statements are useful
 			/* 			 
 			output.speed_m3_m = 0;
@@ -894,7 +894,7 @@ int main(void)
 			////Sensor Testing
 			//printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
 			//printf("s %d %d %d \n\r",input.accell_s[0],input.accell_s[1], input.accell_s[2]);
-			//printf("IR %d %d %d %d \n\r", input.IR1_m, input.IR2_m, input.IR1_s, input.IR2_s);
+			printf("IR %d %d %d %d \n\r", input.IR1_m, input.IR2_m, input.IR1_s, input.IR2_s);
 			//input.IR2_m=get_IR_U5();
 			//input.IR1_m=get_IR_Flex_U1513();
 			//printf("IR %d \n\r", input.IR1_m); //for bend sensor reading only - note change function name to reflect.
@@ -1000,7 +1000,7 @@ int main(void)
 								//Go back to unwind state if S4 is pressed. Should this be the default?
 							if ((input.switch_tension_s==1)&(input.switch_tension_m==1)&(toggle=1)){
 								if(input.switch_S4_m==0){
-									state=SLAVE_GRIPPER;
+									state=IR_CALIBRATE; //do calibration first
 									toggle=0;
 									_delay_ms(2000);
 									break;
@@ -1013,6 +1013,24 @@ int main(void)
 								}
 							}
 							break;
+					case IR_CALIBRATE:
+							if (count<3){ //collect some samples
+								//close_att_thresh_m[0]=close_att_thresh_m[0]+input.IR2_m;
+								//close_att_thresh_m[1]=close_att_thresh_m[1]+input.IR1_m;
+								//close_att_thresh_s[0]=close_att_thresh_s[0]+input.IR2_s;
+								//close_att_thresh_s[1]=close_att_thresh_s[1]+input.IR1_s;
+								count++;
+							}
+							else{ //average the samples and add some wiggle room
+								//close_att_thresh_m[0]=close_att_thresh_m[0]/4+IR_THRESH_SLACK;
+								//close_att_thresh_m[1]=close_att_thresh_m[1]/4+IR_THRESH_SLACK;
+								//close_att_thresh_s[0]=close_att_thresh_s[0]/4+IR_THRESH_SLACK;
+								//close_att_thresh_s[1]=close_att_thresh_s[1]/4+IR_THRESH_SLACK;
+								count=0; //reset counter
+								state=SLAVE_GRIPPER;
+								//system_state=FLIP;
+								break;
+							}
 						case SLAVE_GRIPPER: //attach or detach slave side
 							output.led_m[0]=20;
 							output.led_s[0]=0;
@@ -1066,8 +1084,8 @@ int main(void)
 								i2c_send();
 								master_output_update();
 
-								state=IR_CALIBRATE;
-								//system_state=FLIP; //for previous rendition without auto-calibrate
+								state=DETACHING;
+								system_state=FLIP; //for previous rendition without auto-calibrate
 								_delay_ms(15000);
 								break;
 							}
@@ -1089,24 +1107,7 @@ int main(void)
 								output.speed_m3_m=0;
 							}
 							break;
-						case IR_CALIBRATE:
-							if (count<3){ //collect some samples
-								close_att_thresh_m[0]=close_att_thresh_m[0]+input.IR2_m;
-								close_att_thresh_m[1]=close_att_thresh_m[1]+input.IR1_m;
-								close_att_thresh_s[0]=close_att_thresh_s[0]+input.IR2_s;
-								close_att_thresh_s[1]=close_att_thresh_s[1]+input.IR1_s;
-								count++;
-							}
-							else{ //average the samples and add some wiggle room
-								close_att_thresh_m[0]=close_att_thresh_m[0]/4+IR_THRESH_SLACK;
-								close_att_thresh_m[1]=close_att_thresh_m[1]/4+IR_THRESH_SLACK;
-								close_att_thresh_s[0]=close_att_thresh_s[0]/4+IR_THRESH_SLACK;
-								close_att_thresh_s[1]=close_att_thresh_s[1]/4+IR_THRESH_SLACK;
-								count=0; //reset counter
-								state=DETACHING;
-								system_state=FLIP;
-								break;
-							}
+
 							break;
 					}
 				break; //end SETUP
