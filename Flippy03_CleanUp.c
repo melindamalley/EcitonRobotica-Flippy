@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <avr/interrupt.h>
 
-#define ROBOT 0 //0 is clearbot, 1 is whitebot
+#define ROBOT 1 //0 is clearbot, 1 is whitebot
 #define MASTER 1   // 1 for Master, 0 for Slave
 #define PCBTESTMODE 0 // 1 for running tests, 0 for experiments
 
@@ -1118,7 +1118,7 @@ int main(void)
 				case FLIP: //Normal locomotion
 
 					////Pulse Detect "Interrupt"
-					if(detect_pulse()==1){
+					if(detect_pulse()>>0){
 						count=0;
 						_delay_ms(10);
 						system_state=BRIDGE;
@@ -1810,12 +1810,12 @@ void set_M4(unsigned char on){
 	 //for (i=0;i<IMU_SAMPLE_NUM;i++){
 	 //printf("%d %d %d %d %d %d \n\r", m_samples[i][0], m_samples[i][1], m_samples[i][2], s_samples[i][0], s_samples[i][1], s_samples[i][2]);
 	 //}
-	if (delta>4){
+	if (delta>IMU_DELTA_nTHRESH){
 		setLED(40,40,40);
 		output.led_s[0]=40;
 		output.led_s[1]=40;
 		output.led_s[2]=40;
-		return(1);
+		return(delta);
 	}
 	else{
 		setLED(0,0,0);
