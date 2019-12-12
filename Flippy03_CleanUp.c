@@ -129,11 +129,13 @@
 #define UNWINDSPD 200
 #define GRIPPER_SPD 230
 #define NUM_DETACH_FLIP_ATTEMPTS 12
+#define BRIDGE_DELAY 150 //150 for normal robot
 
 //IMU Parameters
 
 #define IMU_SAMPLE_NUM 15
-#define IMU_DELTA_THRESH 5000
+#define IMU_DELTA_THRESH 7000
+#define IMU_DELTA_nTHRESH 7
 
 //Touch Sensor Thresholds
 
@@ -144,7 +146,7 @@
 //#define WELL_CONNECTED 500
 
 
-#define CLOSE_ATT_THRESH 800 //660 // At least one IR must be under this (probably the close one)
+#define CLOSE_ATT_THRESH (ROBOT ? 820 : 800) //660 // At least one IR must be under this (probably the close one)
 #define FAR_ATT_THRESH 920 // Both IRs should be under 900 to attach
 
 #define IR_THRESH_SLACK 100 //Slop/allowance for IR calibration
@@ -177,7 +179,7 @@ void flipbend(char side, char p);
 void zero_motors(void);
 void LEDsOff(void);
 double get_accel_diff(void);
-void detect_pulse();
+int detect_pulse();
 void pulse();
 
 void init(void);
@@ -852,9 +854,9 @@ int main(void)
 		if (PCBTESTMODE){
 			
 			//detect_pulse();
-
+			if(input.switch_S4_m==0){
 			/////Blink and pulse
-			/*
+			//printf("hi");
 			setLED(50,50,50);
 			set_M4(1);
 			//set(M4_port,M4_pin);
@@ -869,7 +871,8 @@ int main(void)
 			//master_output_update();
 			i2c_send();
 			_delay_ms(500);
-			*/
+			
+			}
 			////Sometimes if statements are useful
 			/* 			 
 			output.speed_m3_m = 0;
@@ -894,7 +897,7 @@ int main(void)
 			////Sensor Testing
 			//printf("m %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2]);
 			//printf("s %d %d %d \n\r",input.accell_s[0],input.accell_s[1], input.accell_s[2]);
-			printf("IR %d %d %d %d \n\r", input.IR1_m, input.IR2_m, input.IR1_s, input.IR2_s);
+			//printf("IR %d %d %d %d \n\r", input.IR1_m, input.IR2_m, input.IR1_s, input.IR2_s);
 			//input.IR2_m=get_IR_U5();
 			//input.IR1_m=get_IR_Flex_U1513();
 			//printf("IR %d \n\r", input.IR1_m); //for bend sensor reading only - note change function name to reflect.
@@ -927,12 +930,13 @@ int main(void)
 			_delay_ms(20);
 			//setLED(0,0,0); 
 			//To gather IR flip data:
-			//printf("IR %d %d %d %d \n\r", input.IR1_m, input.IR2_m, input.IR1_s, input.IR2_s); 
+			//printf("IR %d %d %d %d \n\r", input.IR1_m, input.IR2_m, input.IR1_s, input.IR2_s)
+			//printf("m/s accel %d %d %d %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2], input.accell_s[0],input.accell_s[1], input.accell_s[2]);
+			//printf("state %d %d \n\r", state, system_state);
 			/////
 			
 			switch (system_state){
 				case SETUP: //Experiment Set-up and Reset (in case the robot gets stuck)
-					//printf("state %d \n\r", state);
 					switch(state){
 						case UNWIND: //unwind motors on command
 							output.led_m[1]=20;
@@ -956,7 +960,7 @@ int main(void)
 							else if(input.switch_S4_m==0)
 							{
 								output.led_m[0]=30;
-								output.led_m[1]=0;	
+								output.led_m[1]=0;
 								output.direction_m5_m=1;
 								output.speed_m5_m=100;
 							}
@@ -1086,7 +1090,7 @@ int main(void)
 
 								state=DETACHING;
 								system_state=FLIP; //for previous rendition without auto-calibrate
-								_delay_ms(15000);
+								_delay_ms(5000);
 								break;
 							}
 							else if (input.switch_S4_m==0){
@@ -1112,6 +1116,14 @@ int main(void)
 					}
 				break; //end SETUP
 				case FLIP: //Normal locomotion
+
+					////Pulse Detect "Interrupt"
+					if(detect_pulse()==1){
+						count=0;
+						_delay_ms(10);
+						system_state=BRIDGE;
+					}
+
 					switch(state){
 						case FLIPPING1:	//flipping 
 							//flipside - define by the moving gripper
@@ -1367,7 +1379,18 @@ int main(void)
 					}
 				break; //end FLIP
 				case BRIDGE:
-					detect_pulse();
+					zero_motors();
+					count2=detect_pulse();
+					if (count2==0){ 
+						count++; //add to counter if no other robot is detected. 
+					}
+					else{
+						count=0; //reset counter if pulse is detected
+					}
+					//if no robot is detected during the set bridge delay time, revert to previous flip state. 
+					if (count>BRIDGE_DELAY){
+						system_state=FLIP; 
+					}
 				break;
 			}
 		}
@@ -1758,7 +1781,7 @@ void set_M4(unsigned char on){
 /////////////////utility functions 
 
 //function for detecting another robot's IMU pulses
- void detect_pulse(){
+ int detect_pulse(){
 	 int i=0;
 	 int m_samples[IMU_SAMPLE_NUM][3];
 	 int s_samples[IMU_SAMPLE_NUM][3];
@@ -1772,9 +1795,9 @@ void set_M4(unsigned char on){
 		 m_samples[i][0]=input.accell_m[0];
 		 m_samples[i][1]=input.accell_m[1];
 		 m_samples[i][2]=input.accell_m[2];
-		 s_samples[i][0]=input.accell_s[0];
-		 s_samples[i][1]=input.accell_s[1];
-		 s_samples[i][2]=input.accell_s[2];
+		 s_samples[i][0]= (ROBOT ? 0 : input.accell_s[0]); //input.accell_s[0];
+		 s_samples[i][1]= (ROBOT ? 0 : input.accell_s[1]); //input.accell_s[1];
+		 s_samples[i][2]= (ROBOT ? 0 : input.accell_s[2]); //input.accell_s[2];
 
 		 if (i>0){
 			 //Check if any of the values recorded differe from previous by more than the threshold. 
@@ -1785,19 +1808,21 @@ void set_M4(unsigned char on){
 		 }
 	 }
 	 //for (i=0;i<IMU_SAMPLE_NUM;i++){
-	 //printf("%d %d %d \n\r", m_samples[i][0], m_samples[i][1], m_samples[i][2]);
+	 //printf("%d %d %d %d %d %d \n\r", m_samples[i][0], m_samples[i][1], m_samples[i][2], s_samples[i][0], s_samples[i][1], s_samples[i][2]);
 	 //}
-	if (delta>3){
+	if (delta>4){
 		setLED(40,40,40);
 		output.led_s[0]=40;
 		output.led_s[1]=40;
 		output.led_s[2]=40;
+		return(1);
 	}
 	else{
 		setLED(0,0,0);
 		output.led_s[0]=0;
 		output.led_s[1]=0;
 		output.led_s[2]=0;
+		return(0);
 	}
 
  }
