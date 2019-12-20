@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <avr/interrupt.h>
 
-#define ROBOT 1 //0 is clearbot, 1 is whitebot
+#define ROBOT 0 //0 is clearbot, 1 is whitebot
 #define MASTER 1   // 1 for Master, 0 for Slave
 #define PCBTESTMODE 0 // 1 for running tests, 0 for experiments
 
@@ -129,7 +129,7 @@
 #define UNWINDSPD 200
 #define GRIPPER_SPD 230
 #define NUM_DETACH_FLIP_ATTEMPTS 12
-#define BRIDGE_DELAY 150 //150 for normal robot
+#define BRIDGE_DELAY 100 //150 for normal robot
 
 //IMU Parameters
 
@@ -146,8 +146,8 @@
 //#define WELL_CONNECTED 500
 
 
-#define CLOSE_ATT_THRESH (ROBOT ? 820 : 800) //660 // At least one IR must be under this (probably the close one)
-#define FAR_ATT_THRESH 920 // Both IRs should be under 900 to attach
+#define CLOSE_ATT_THRESH (ROBOT ? 830 : 820) //660 // At least one IR must be under this (probably the close one)
+#define FAR_ATT_THRESH 940 // Both IRs should be under 900 to attach
 
 #define IR_THRESH_SLACK 100 //Slop/allowance for IR calibration
 
@@ -932,6 +932,7 @@ int main(void)
 			//To gather IR flip data:
 			//printf("IR %d %d %d %d \n\r", input.IR1_m, input.IR2_m, input.IR1_s, input.IR2_s)
 			//printf("m/s accel %d %d %d %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2], input.accell_s[0],input.accell_s[1], input.accell_s[2]);
+			//printf("m accel %d %d %d \n\r", input.accell_m[0],input.accell_m[1], input.accell_m[2]);
 			//printf("state %d %d \n\r", state, system_state);
 			/////
 			
@@ -1117,7 +1118,7 @@ int main(void)
 				break; //end SETUP
 				case FLIP: //Normal locomotion
 
-					////Pulse Detect "Interrupt"
+					//Pulse Detect "Interrupt"
 					if(detect_pulse()>>0){
 						count=0;
 						_delay_ms(10);
@@ -1380,12 +1381,12 @@ int main(void)
 				break; //end FLIP
 				case BRIDGE:
 					zero_motors();
-					count2=detect_pulse();
+					count2=detect_pulse(); 
 					if (count2==0){ 
 						count++; //add to counter if no other robot is detected. 
 					}
 					else{
-						count=0; //reset counter if pulse is detected
+						count=count-count2; //reset counter proportional to amount of delta detected. 
 					}
 					//if no robot is detected during the set bridge delay time, revert to previous flip state. 
 					if (count>BRIDGE_DELAY){
