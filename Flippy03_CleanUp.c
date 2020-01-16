@@ -1203,7 +1203,7 @@ int main(void)
 								//Just check first if robot "sees" a surface
 
 								if (flipside ? ((input.IR1_m<FAR_ATT_THRESH)|(input.IR2_m<FAR_ATT_THRESH)):
-									((input.IR1_s<FAR_ATT_THRESH)&(input.IR2_s<FAR_ATT_THRESH)))
+									((input.IR1_s<FAR_ATT_THRESH)|(input.IR2_s<FAR_ATT_THRESH)))
 									{
 									
 									count++; //Account for noise, make sure the surface is detected twice. 
@@ -1219,8 +1219,8 @@ int main(void)
 							}
 							if (toggle==3){
 								//First check to see if second attach thresh are met. 
-								if(flipside ? ((input.IR1_m<close_att_thresh_m[1])&(input.IR2_m<close_att_thresh_m[0])):
-									((input.IR1_s<close_att_thresh_s[1])&(input.IR2_s<close_att_thresh_s[0])))
+								if(flipside ? ((input.IR1_m<close_att_thresh_m[1])|(input.IR2_m<close_att_thresh_m[0])):
+									((input.IR1_s<close_att_thresh_s[1])|(input.IR2_s<close_att_thresh_s[0])))
 									{
 										count2++; //iterate second counter
 										if (count2>2){
