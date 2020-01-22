@@ -128,8 +128,13 @@
 #define WINDSPD 120
 #define UNWINDSPD 200
 #define GRIPPER_SPD 230
-#define NUM_DETACH_FLIP_ATTEMPTS 12
-#define BRIDGE_DELAY 100 //150 for normal robot
+#define NUM_DETACH_FLIP_ATTEMPTS 12 //
+#define BRIDGE_DELAY 100 //how long should the robot paus150 for normal robot
+#define PULSE_INTERVAL 20 //how many counts between pulses
+#define UNSCREW_PERIOD 22 //how long to unscrew grippers before trying to flip
+#define TRY2FLIP_PERIOD 5 //for how long should the robot try to flip
+
+//////////////
 
 //IMU Parameters
 
@@ -137,6 +142,7 @@
 #define IMU_DELTA_THRESH 7000
 #define IMU_DELTA_nTHRESH 7
 
+/////////////////
 //Touch Sensor Thresholds
 
 //Individual Sensors
@@ -145,8 +151,7 @@
 //#define CONNECTED 600
 //#define WELL_CONNECTED 500
 
-
-#define CLOSE_ATT_THRESH (ROBOT ? 830 : 820) //660 // At least one IR must be under this (probably the close one)
+#define CLOSE_ATT_THRESH (ROBOT ? 840 : 830) //660 // At least one IR must be under this (probably the close one)
 #define FAR_ATT_THRESH 940 // Both IRs should be under 900 to attach
 
 #define IR_THRESH_SLACK 100 //Slop/allowance for IR calibration
@@ -156,6 +161,8 @@
 //Combination  Thesholds (didn't work as well)
 #define DETACH_THRESH 1840 
 #define ATTACH_THRESH 1200
+
+////////////
 
 //Other Useful Variables
 #define PI 3.14159
@@ -1005,20 +1012,20 @@ int main(void)
 								//Go back to unwind state if S4 is pressed. Should this be the default?
 							if ((input.switch_tension_s==1)&(input.switch_tension_m==1)&(toggle=1)){
 								if(input.switch_S4_m==0){
-									state=IR_CALIBRATE; //do calibration first
+									state=SLAVE_GRIPPER; 
 									toggle=0;
 									_delay_ms(2000);
 									break;
 								}
 								else if(input.switch_S4_s==0){
-									system_state=BRIDGE;
+									state=UNWIND;
 									toggle=0;
 									_delay_ms(2000);
 									break;
 								}
 							}
 							break;
-					case IR_CALIBRATE:
+						case IR_CALIBRATE: //attempt to automate calibration. 
 							if (count<3){ //collect some samples
 								//close_att_thresh_m[0]=close_att_thresh_m[0]+input.IR2_m;
 								//close_att_thresh_m[1]=close_att_thresh_m[1]+input.IR1_m;
@@ -1161,6 +1168,7 @@ int main(void)
 									if (count>12){
 										toggle=1;
 										count=0;
+										pulse();
 									}
 									count++;
 								}
@@ -1173,6 +1181,7 @@ int main(void)
 									//If the robot is fully bent, it can search for a surface
 									if((bend_angle>170)&&(bend_angle<200)){
 										toggle=2;
+										pulse();
 										//printf("toggle");
 										output.led_m[2]=flipside*20;
 										output.led_s[2]=(!flipside)*20;
@@ -1181,6 +1190,7 @@ int main(void)
 									//Neutral/0 degree position check
 									if(bend_angle<10){
 										toggle=2;
+										pulse();
 									}
 								}
 							}
@@ -1219,8 +1229,8 @@ int main(void)
 							}
 							if (toggle==3){
 								//First check to see if second attach thresh are met. 
-								if(flipside ? ((input.IR1_m<close_att_thresh_m[1])|(input.IR2_m<close_att_thresh_m[0])):
-									((input.IR1_s<close_att_thresh_s[1])|(input.IR2_s<close_att_thresh_s[0])))
+								if(flipside ? ((input.IR1_m<close_att_thresh_m[1])&(input.IR2_m<close_att_thresh_m[0])):
+									((input.IR1_s<close_att_thresh_s[1])&(input.IR2_s<close_att_thresh_s[0])))
 									{
 										count2++; //iterate second counter
 										if (count2>2){
@@ -1230,7 +1240,7 @@ int main(void)
 											count2=0;
 										}							
 								}	
-								else if (count>5){
+								else if (count>TRY2FLIP_PERIOD){
 									//Use pulse both to tell any robots that I want to attach and to add a delay between flip attempts
 									pulse();
 									count=0; //reset counter
@@ -1264,15 +1274,21 @@ int main(void)
 							output.speed_m5_s=0;
 							output.speed_m5_m=0;
 
-							//Set direction and speed for grippers, depending on flipside. 
+							//Set direction for grippers
 							output.direction_m3_m=0;
 							output.direction_m3_s=0;
-
+							//set speed for grippers to either 0 or gripper speed depending on flipside. 
 							output.speed_m3_m=flipside*0.7*GRIPPER_SPD;
 							output.speed_m3_s=(!flipside)*0.7*GRIPPER_SPD;
 							//Just run the grippers forward for a set time.
+
+							//Pulse every 20
+							if(count2>PULSE_INTERVAL){
+								pulse();
+								count2=0;
+							}
 							
-							if (count>230){
+							if (count>100){
 								//Zero everything
 								count=0;
 								output.led_m[1]=0;
@@ -1293,6 +1309,7 @@ int main(void)
 								break;
 							}
 							count++;
+							count2++;
 						break;
 						case DETACHING: //detaching the master side
 							//Detaching works by running the grippers backward for a set period of time and then trying to flip
@@ -1310,6 +1327,11 @@ int main(void)
 							//set motors based on flipside - 0 = slave side moving gripper, 1 = master side moving
 							output.speed_m3_m=flipside*GRIPPER_SPD;
 							output.speed_m3_s=(!flipside)*GRIPPER_SPD;
+							
+							//pulse at the beginning of each count reset. 
+							if (count==0){
+								pulse(); 
+							}
 
 							count++;
 							//printf("%d \n\r", count); 
@@ -1365,12 +1387,12 @@ int main(void)
 									}
 							}
 							//otherwise just try to unscrew for 20 ticks
-							else if (count>22){
+							else if (count>UNSCREW_PERIOD){
 								//then try to flip for 5 ticks
-								if (count<27){
+								if (count<UNSCREW_PERIOD+TRY2FLIP_PERIOD){
 									flipbend(flipside,8);
 								}
-								else{
+								else{ 
 								//reset count
 								count=0;
 								count2++; //record how many rounds we've been trying to detach overall. 
