@@ -129,10 +129,13 @@
 #define UNWINDSPD 200
 #define GRIPPER_SPD 230
 #define NUM_DETACH_FLIP_ATTEMPTS 12 //
-#define BRIDGE_DELAY 100 //how long should the robot paus150 for normal robot
-#define PULSE_INTERVAL 20 //how many counts between pulses
 #define UNSCREW_PERIOD 22 //how long to unscrew grippers before trying to flip
 #define TRY2FLIP_PERIOD 5 //for how long should the robot try to flip
+
+// Bridge state Parameters:
+#define BRIDGE_DELAY 150 //how long should the robot paus150 for normal robot
+#define BRIDGE_GAIN 3 //bridge delay is cumulative - adds a delay each time the robot hears a pulse multiplied by number of pulses detected. 
+#define PULSE_INTERVAL 20 //how many counts between pulses
 
 //////////////
 
@@ -935,7 +938,8 @@ int main(void)
 			i2c_read();
 			master_input_update();
 			_delay_ms(20);
-			//setLED(0,0,0); 
+			//setLED(0,0,0);
+						 
 			//To gather IR flip data:
 			//printf("IR %d %d %d %d \n\r", input.IR1_m, input.IR2_m, input.IR1_s, input.IR2_s)
 			//printf("m/s accel %d %d %d %d %d %d \n\r",input.accell_m[0],input.accell_m[1], input.accell_m[2], input.accell_s[0],input.accell_s[1], input.accell_s[2]);
@@ -1098,7 +1102,7 @@ int main(void)
 
 								state=DETACHING;
 								system_state=FLIP; //for previous rendition without auto-calibrate
-								_delay_ms(5000);
+								_delay_ms(10000);
 								break;
 							}
 							else if (input.switch_S4_m==0){
@@ -1403,7 +1407,7 @@ int main(void)
 				break; //end FLIP
 				case BRIDGE:
 					zero_motors();
-					count2=detect_pulse(); 
+					count2=BRIDGE_GAIN*detect_pulse(); 
 					if (count2==0){ 
 						count++; //add to counter if no other robot is detected. 
 					}
