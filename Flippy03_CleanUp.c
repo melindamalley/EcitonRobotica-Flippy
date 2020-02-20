@@ -131,10 +131,11 @@
 #define NUM_DETACH_FLIP_ATTEMPTS 12 //
 #define UNSCREW_PERIOD 22 //how long to unscrew grippers before trying to flip
 #define TRY2FLIP_PERIOD 5 //for how long should the robot try to flip
+#define	WAIT 20 //Add a wait time for the first robot to help ensure attachment?
 
 // Bridge state Parameters:
-#define BRIDGE_DELAY 150 //how long should the robot paus150 for normal robot
-#define BRIDGE_GAIN 3 //bridge delay is cumulative - adds a delay each time the robot hears a pulse multiplied by number of pulses detected. 
+#define BRIDGE_DELAY 150 //how long should the robot pause in bridge delay, 150 for normal robot
+#define BRIDGE_GAIN 7 //bridge delay is cumulative - adds a delay each time the robot hears a pulse multiplied by number of pulses detected. 
 #define PULSE_INTERVAL 20 //how many counts between pulses
 
 //////////////
@@ -1130,10 +1131,13 @@ int main(void)
 				case FLIP: //Normal locomotion
 
 					//Pulse Detect "Interrupt"
-					if(detect_pulse()>>0){
-						count=0;
-						_delay_ms(10);
-						system_state=BRIDGE;
+					if (!ROBOT){ //whitebot malfunctions - don't allow to detect. 
+						if(detect_pulse()>>0){
+							count=0;
+							_delay_ms(10);
+							system_state=BRIDGE;
+							LEDsOff(); //turn off all leds
+						}
 					}
 
 					switch(state){
@@ -1297,8 +1301,7 @@ int main(void)
 								count=0;
 								output.led_m[1]=0;
 								output.led_s[1]=0;
-								output.speed_m3_m=0;
-								output.speed_m3_s=0;
+								zero_motors();
 								pulse();
 
 								//Prep for next state
@@ -1307,9 +1310,10 @@ int main(void)
 
 								//check current orientation of boards to have an initial bend position as a reference for detaching
 								init_angle=flipside ? rad2deg(atan2((input.accell_m[0]),(input.accell_m[1]))):rad2deg(atan2((input.accell_s[0]),(input.accell_s[1])));
-								
 								state=DETACHING;	//New state
-								
+								if (!ROBOT) { //add a bridge delay to clearbot which goes first. 
+									system_state=BRIDGE;
+								}								
 								break;
 							}
 							count++;
@@ -1858,10 +1862,10 @@ void set_M4(unsigned char on){
 
 void pulse(){
 			/////Blink and pulse
-			output.led_s[0]=30;
-			output.led_s[1]=30;
-			output.led_s[2]=30;
-			setLED(50,50,50);
+			output.led_s[0]=0;
+			output.led_s[1]=40;
+			output.led_s[2]=40;
+			setLED(0,40,40);
 			output.vibration_m=1;
 			output.vibration_s=1;
 			master_output_update();
