@@ -134,8 +134,8 @@
 #define	WAIT 20 //Add a wait time for the first robot to help ensure attachment?
 
 // Bridge state Parameters:
-#define BRIDGE_DELAY 150 //how long should the robot pause in bridge delay, 150 for normal robot
-#define BRIDGE_GAIN 7 //bridge delay is cumulative - adds a delay each time the robot hears a pulse multiplied by number of pulses detected. 
+#define BRIDGE_DELAY 150 //how long should the robot pause in bridge delay each time it hears a pulsess
+#define BRIDGE_GAIN 10 //bridge delay is cumulative - adds a delay each time the robot hears a pulse multiplied by number of pulses detected. 
 #define PULSE_INTERVAL 20 //how many counts between pulses
 
 //////////////
@@ -1133,10 +1133,11 @@ int main(void)
 					//Pulse Detect "Interrupt"
 					if (!ROBOT){ //whitebot malfunctions - don't allow to detect. 
 						if(detect_pulse()>>0){
-							count=0;
+							count=-BRIDGE_DELAY;
 							_delay_ms(10);
 							system_state=BRIDGE;
 							LEDsOff(); //turn off all leds
+							break;
 						}
 					}
 
@@ -1411,15 +1412,16 @@ int main(void)
 				break; //end FLIP
 				case BRIDGE:
 					zero_motors();
-					count2=BRIDGE_GAIN*detect_pulse(); 
-					if (count2==0){ 
-						count++; //add to counter if no other robot is detected. 
+					count2=BRIDGE_GAIN*detect_pulse(); //check if a pulse is detected and how strong. 
+					if (count2>0){ //if a pulse is detected
+						count=count-BRIDGE_DELAY-count2; //add the standard bridge delay and small proportional to the sample size. 
+						LEDsOff(); //turn LEDs off in case of prior "wait state"
 					}
 					else{
-						count=count-count2; //reset counter proportional to amount of delta detected. 
+						count++; //if no robot is detected, continue counter 
 					}
 					//if no robot is detected during the set bridge delay time, revert to previous flip state. 
-					if (count>BRIDGE_DELAY){
+					if (count==0){
 						system_state=FLIP; 
 					}
 				break;
